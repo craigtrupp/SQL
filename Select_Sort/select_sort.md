@@ -284,3 +284,98 @@ ORDER BY column_b, column_a DESC;
 
 **Note** : See how _row w/ID 6_ is now the first row for column_b shared values as it's column_a value is higher than the other two rows
 
+<br><br>
+
+
+## ORDER BY Addtional Notes 
+Text fields will be sorted in alphabetical order, but be careful when some of these text fields start with numbers or non-alphabetical characters.
+
+Try running the below example and updating some of these raw values to see if your assumptions about the ordering is true!
+
+```sql
+WITH test_data (sample_values) AS (
+VALUES
+(null),
+('0123'),
+('_123'),
+(' 123'),
+('(abc'),
+('  abc'),
+('bca')
+)
+SELECT * FROM test_data
+ORDER BY 1;
+```
+
+|sample_values|
+|:-----------|
+|0123|
+|123|
+|_123|
+|abc|
+|(abc|
+|bca|
+|null|
+
+<br>
+
+> When we put the NULLS FIRST expression at the end of the ORDER BY clause we will see a different output:
+
+```sql
+WITH test_data (sample_values) AS (
+VALUES
+(null),
+('0123'),
+('_123'),
+(' 123'),
+('(abc'),
+('  abc'),
+('bca')
+)
+SELECT * FROM test_data
+ORDER BY 1 NULLS FIRST;
+```
+
+|sample_values|
+|:-----------|
+|null|
+|0123|
+|123|
+|_123|
+|abc|
+|(abc|
+|bca|
+
+<br>
+
+* Does this also stay true when we use an ORDER BY DESC ?
+```sql
+WITH test_data (sample_values) AS (
+VALUES
+(null),
+('0123'),
+('_123'),
+(' 123'),
+('(abc'),
+('  abc'),
+('bca')
+)
+SELECT * FROM test_data
+ORDER BY 1 DESC NULLS FIRST;
+```
+
+|sample_values|
+|:-----------|
+|null|
+|0123|
+|123|
+|_123|
+|abc|
+|(abc|
+|bca|
+
+> ORDER BY DESC orders Null the same
+
+
+
+

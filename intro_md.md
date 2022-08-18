@@ -7,7 +7,6 @@ You can also type some text here.
 This is how you do something in **bold** or _italics_
 
 Then you can make a list of bullet points:
-
 * 1, 2, 3
 * A, B, C
 * what about an indented bullet?

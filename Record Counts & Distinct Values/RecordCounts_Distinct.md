@@ -15,10 +15,7 @@ Namely, we will be looking at how many records there are in a given table and al
 * Be sure to run a simple `SELECT * FROM dvd_rentals.film_list` to inspect the raw data before diving into the rest of this tutorial. Reading through some of the film descriptions should give you a good laugh!
   + **Don't** forget a `LIMIT`!
 
-  
 ___
-
-<br>
 
 ## How Many Records?
 One of the first things we like to know about any dataset is **_how many rows there are_**!
@@ -43,9 +40,8 @@ FROM dvd_rentals.film_list;
 | row_count |
 |:---|
 |997|
-___
 
-<br>
+___
 
 ## Column Aliases
 
@@ -80,8 +76,6 @@ FROM dvd_rentals.film_list;
 ```
 
 ___
-
-<br>
 
 ## `DISTINCT` For Unique Values
 
@@ -144,8 +138,6 @@ FROM dvd_rentals.film_list;
 |:----|
 |16|
 ___
-
-<br>
 
 ## `Group By` Counts
 Although the unique values or a `distinct` count of one column can be very useful when answering certain types of data questions - we can take this style of analysis further by using the `GROUP BY` clause with a `COUNT` aggregate function to help us generate a basic frequency value counts output.
@@ -302,4 +294,139 @@ ORDER BY COUNT(*) DESC;
 |PG|194|0.19458375125376128385|
 |R|193|0.19358074222668004012|
 |G|177|0.17753259779338014042|
+
+
+
+___
+
+<br>
+
+## Counts For Multiple Column Combinations
+Previously we have been looking at the unique values for just 1 column. In this section we will demonstrate how best to analyse combinations of 2+ columns.
+
+The simplest way to do this is to apply the same `GROUP BY` clause and just specify additional columns in the grouping element expressions at the bottom of the SQL statement.
+
+When we use `GROUP BY` on 2+ columns, the subsequent `COUNT` function will aggregate the records based off the unique combination of values in these columns instead of just a single 1.
+
+It is quite common to see queries to profile specific columns by descending frequency like the following example.
+
+Note that the syntax is very similar to the previous GROUP BY example but with the addition of more columns in both the `SELECT` statement and the following `GROUP BY` clause.
+
+<br>
+
+#### Example Exercise:
+
+1. What are the 5 most frequent rating and category combinations in the film_list table? - `Limit` 5
+
+```sql
+SELECT
+  rating,
+  category,
+  COUNT(*) AS frequency
+FROM dvd_rentals.film_list
+GROUP BY rating, category
+ORDER BY frequency DESC
+LIMIT 5;
+```
+
+|rating|category|frequency|
+|:------|:------|:-------|
+|PG-13|Drama|22|
+|NC-17|Music|20|
+|PG-13|Foreign|19|
+|PG-13|Animation|19|
+|NC-17|New|18|
+
+___
+
+<br>
+
+## Using Positional Numbers Instead of Column Names
+
+This is actually quite an important note because you will run into this sooner or later in any SQL situation!
+
+Some SQL developers like to refer to target columns used in `GROUP BY` and `ORDER BY` clauses by the **positional** number that the columns appear in the `SELECT` statement.
+
+Be mindful that this is usually just a stylistic choice made by different developers in different teams and there is no right or wrong when it comes to this!
+
+For example using our previous code snippet with just a `GROUP BY` clause to demonstrate what we mean by this:
+
+```sql
+SELECT
+  rating,
+  category,
+  COUNT(*) AS frequency
+FROM dvd_rentals.film_list
+GROUP BY 1,2
+```
+
+>Although this may look quite clean - often times it could become actually harder to read and very prone to making mistakes when you are writing the code!
+
+I would recommend sticking with complete column names where possible, sometimes you can use numbers in the `GROUP BY` clause for a huge amount of columns instead of listing them all out explicitly - but be sure to be very clear with your expression inputs for the `ORDER BY` clause to maximise readibility and comprehension for anyone reading your code!
+
+* Tough to Interpret
+```sql
+SELECT
+  rating,
+  category,
+  COUNT(*) AS frequency
+FROM dvd_rentals.film_list
+GROUP BY 1,2
+ORDER BY 3 DESC
+LIMIT 5;
+```
+* Better 
+```sql
+SELECT
+  rating,
+  category,
+  COUNT(*) AS frequency
+FROM dvd_rentals.film_list
+GROUP BY 1,2
+ORDER BY frequency DESC
+LIMIT 5;
+``` 
+
+* **Best!**
+```sql
+SELECT
+  rating,
+  category,
+  COUNT(*) AS frequency
+FROM dvd_rentals.film_list
+GROUP BY rating, category
+ORDER BY frequency DESC
+LIMIT 5;
+```
+
+---
+
+<br>
+
+## Exercises
+These exercises will take a quick look at the other tables within the dvd_rentals schema.
+> SQL Answers are in subsequent file in Folder
+
+1. Which actor_id has the most number of unique film_id records in the dvd_rentals.film_actor table?
+2. How many distinct **fid** values are there for the three most common price values in the dvd_rentals.nicer_but_slower_film_list table?
+3. How many unique country_id values exist in the dvd_rentals.city table?
+4. What percentage of overall total_sales does the Sports category make up in the dvd_rentals.sales_by_film_category table?
+5. What percentage of unique fid values are in the Children category in the dvd_rentals.film_list table?
+
+
+<br>
+
+## Conclusion
+The following concepts, methods were covered above 
+
+* `COUNT` function
+* `DISTINCT` keyword
+* `GROUP BY` clauses and how they work under the hood
+* Use `ORDER BY` with `GROUP BY` to selectively sort the output
+* Column **aliases** to rename `SELECT` expressions in the final output
+* Frequency/counts for a single column and multiple column combinations
+* Efficiently calculate the counts percentage for groups using window functions
+
+> Ensure that any numeric agg function applied should cast either the top or bottom term (column value ) to a `::NUMERIC` type to avoid Integere floor division scenarios!
+
 

@@ -37,3 +37,18 @@ FROM dvd_rentals.address
 ORDER BY city_id DESC
 LIMIT 5;
 
+
+-- Test Data Creation Sorting Order
+WITH test_data (sample_values) AS (
+VALUES
+(null),
+('0123'),
+('_123'),
+(' 123'),
+('(abc'),
+('  abc'),
+('bca')
+)
+SELECT * FROM test_data
+ORDER BY 1;
+

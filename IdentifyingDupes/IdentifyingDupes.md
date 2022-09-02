@@ -1,240 +1,214 @@
-# Exploring Data with SQL
+# Identifying Duplicate Data
 
-You may have heard people talk about how they would investigate, explore, profile or analyze a new dataset.
 
-Did you also ask yourself “what does it really mean?” and “how can we use **SQL** to do this?”
+Duplicate records are literally everywhere when you start dealing in the world of real-life messy datasets.
 
-This tutorial will cover a few useful ideas to keep in mind when taking a look at a new dataset in a SQL database.
+In this tutorial, we will learn how to deal with these situations by providing a real messy dataset that we will analyse together - and perhaps you might even broaden your thinking and philosophy about dealing with dirty data!
 
-Namely, we will be looking at how many records there are in a given table and also start to investigate what are the unique or distinct values in a specific column or table.
+Sometimes we need to take a step back from this low level data work and inspect the problem from a 10,000 foot view so we can see the forest instead of always going from tree to tree.
 
-* For all the coding examples in this tutorial - we will investigate the range of DVDs that are available for hire in our sample dataset running in docker
-  + dvd_rentals.film_list
-  + schema.table
+One thing I would like to **stress** on you is the importance of dealing with duplicates in any dataset!
 
-* Be sure to run a simple `SELECT * FROM dvd_rentals.film_list` to inspect the raw data before diving into the rest of this tutorial. Reading through some of the film descriptions should give you a good laugh!
-  + **Don't** forget a `LIMIT`!
+Supreme amounts of care is required to deal with these two before diving into any further analytics!
+
+A word of warning also - this section will build off our previously covered topics but will also introduce new SQL techniques as we start combining techniques to round out our SQL skillset!
+
+Make sure to read through all the various code chunks carefully and please run them in the SQL Docker environment!
+
+___
+<br>
+
+## Introduction to Health Data
+In this tutorial we will use a new database table to cover some of these concepts: `health.user_logs`
+
+For context, this real world messy dataset captures data taken from individuals logging their measurements via an online portal throughout the day.
+
+For example, multiple measurements can be taken on the same day at different times, but you may notice this information is missing as the log_date column does not show timestamp values!
+
+Welcome to the real world of messy datasets :)
+
+Build on our knowledge base from the previous tutorials - do you remember what was one of the first steps in analyzing a new dataset we’ve never seen before?
+
+You can find this table under the health schema on the left part of the SQLPad GUI
+
+**Let’s inspect a snapshot to view the first 10 rows from the `health.user_logs` table**
+
+#### _Example Exercise_:
+
+> Just initial row for output from query below
+
+```sql
+SELECT *
+FROM health.user_logs
+LIMIT 10;
+```
+| id | log_date | measure | measure_value | systolic | diastolic
+|:---| :------ | :------ | :------ | :------ | :------ | 
+|fa28f948a74032....|2020-11-15 | weight | 46.03959	| null | null|
 
 ___
 
-## How Many Records?
-One of the first things we like to know about any dataset is **_how many rows there are_**!
+<br>
 
-It is really important to know just how many records there are in a table prior to running further analytical queries on the dataset.
-
-The data size will have significant impacts on performance, as will indexes which we cover indepth later in this program!
-
-In the following example, we use the `COUNT` function to take a look at a simple record count in a table.
-
-Often you will see `COUNT(*)` out in the wild - we commonly refer to this as **“count star”** when talking about this in conversation!
+## Record Counts 
+Let’s also take a quick look at a few basic counts to get a good feel for our dataset
+: `health.user_logs`
 
 
-#### Example Exercise:
-
-1. How many rows are there in the film_list table?
+#### _Example Exercise_:
 
 ```sql
-SELECT COUNT(*) AS row_count
-FROM dvd_rentals.film_list;
+SELECT *
+FROM health.user_logs
+LIMIT 10;
 ```
-| row_count |
+| count |
 |:---|
-|997|
-
-___
-
-## Column Aliases
-
-Notice in the query above how there is an extra **AS** row_count after that `COUNT(*)`?
-
-This is known as a **“column alias”** which is used to specify a name for an expression in the select statement. In this case, we are renaming our `COUNT(*)` expression to **“row_count"** instead of the default name “count”.
-
-**Aliases** can also be used to name other SQL expressions such as 
-* database tables 
-* subqueries 
-* common table expressions **(CTEs)**.
-
-Aliases are really important when joining tables and performing other operations with CTEs as they vastly improve SQL code readability - reducing the time it takes for you to write and debug the code, as well as for others to quickly scan and understand your code!
-
-> There is a saying - code is written once, read multiple times! This is exactly why we must strive to always write simple understandable code (that also looks nice!)
-
-<br>
-
-### Formatting Note:
-
-One more additional note - sometimes you might see SQL record count queries written with `COUNT(1)` instead of `COUNT(*)` - in essence there is no difference, it is purely a stylistic choice!
-
-My recommendation would be to use the same convention as whatever your team uses in the workplace - however my personal preference would be to use `COUNT(*)` where possible as it is the most clear for anyone else reading your code!
-
-```sql
-SELECT COUNT(1) AS row_count
-FROM dvd_rentals.film_list;
-```
-```sql
-SELECT COUNT(*) AS row_count
-FROM dvd_rentals.film_list;
-```
-
-___
-
-## `DISTINCT` For Unique Values
-
-Often we will be interested in identifying just how many unique values there are in a specific column or table.
-
-We can look at these values by themselves but more commonly we will try to look at the counts or frequencies, the number of times certain combinations occur within a dataset.
-
-First let’s take a look at extracting the unique values only.
+|43891|
 
 ___
 
 <br>
 
-### Show Unique Column Values
+## Unique Column Counts
+Let’s use the `COUNT DISTINCT` to take a look at how many unique `id` values there are in this dataset.
 
-We can use the `DISTINCT` keyword to obtain unique values from a deduplicated target column.
+This will give us a feel for how many unique users there are whilst we continue getting a better picture of what’s going on!
 
-You might hear the terms dedupe, deduplicate, distinct or unique interchangeably in the workplace but just know that these all mean the same thing!
-
-#### Example Exercise:
-
-1. What are the unique values for the rating column in the film table?
-
+--- 
+#### _Example Exercise_:
 ```sql
-SELECT DISTINCT rating
-FROM dvd_rentals.film_list;
+SELECT COUNT(DISTINCT id)
+FROM health.user_logs;
 ```
-
-| rating |
+| count |
 |:---|
-|NC-17|
-|R|
-|PG-13|
-|PG|
-|G|
+|554|
 
 ___
 
 <br>
 
-### Count of Unique Values
+## Single Column Frequency Counts
 
-Maybe you’re not interested in the actual unique values themselves but rather, you might want to know how many of them there are - in other words
->you want to know the count of `distinct` values within a column.
+Let’s also inspect that **measure** column and take a look at the most frequent values within this column using a `GROUP BY` and `ORDER BY DESC` combo from the last tutorial - let’s also throw in that percentage column that we went through also!
 
-<br>
-
-We can use the `COUNT` function with the `DISTINCT` keyword to find the number of unique values of a specific column.
+> Implement a Window Function for each individual measure's overall percentage frequency
 
 #### Example Exercise:
 
-1. How many unique category values are there in the film_list table?
-
 ```sql
-SELECT DISTINCT rating
-FROM dvd_rentals.film_list;
+SELECT
+  measure,
+  COUNT(*) AS measure_frequency,
+  ROUND(
+  100 * COUNT(*) / SUM(COUNT(*)) OVER()
+  , 2) 
+FROM health.user_logs
+GROUP BY measure;
 ```
 
+| measure | measure_frequency | round|
+|:---| :-------| :---------------|
+|blood_glucose| 38692 | 88.15 |
+|blood_pressure| 2417 | 5.51 |
+|weight| 2782 | 6.34 | 
+
+
+>  `100 * COUNT(*)` multipies the count of the group frequencies values, `SUM(COUNT(*))` generates the sum of all generated frequencies for measure (ex : 38692 * 43894 = 0.881487... * 100 for percentage) 
+> `OVER()` is our window function for the logic to Work over for the resulting window, 
+> `ROUND()` is called on the result of the operation above and rounds to two decimal places
+
+
+<br><br>
+
+# How to Deal w/Duplicates
+Duplication of data might occur due to many different reasons, often these are related to upstream issues with data collection, data processing or even manual data entry mistakes - think of all those times you made typos when filling in an Excel spreadsheet!
+
+In SQL there are a few different ways to deal with these duplicate records:
+
+* Remove them in a SELECT statement
+* Recreating a “clean” version of our dataset
+* Identify exactly which rows are duplicated for further investigation or
+* Simply ignore the duplicates and leave the dataset alone
+* Wait…what? You want me to just ignore duplicate data?!?
+
+Before we jump to any conclusions - let’s find out more as we start peeling the layers off our problem.
+
+Firstly, we need to figure out if we even have duplicate records in our table!
+___
+
+<br>
+
+## Detecting Duplicate Records
+Before we think about removing duplicate records - we need a systematic way to check whether our table has any duplicate records first!
+
+There are actually a few different ways to do this but I will show you first a simple method before jumping to the most efficient solution.
+
+The first ingredient for this recipe is the basic record count for our table - plain and simple using the `COUNT(*)` just like we did above.
+    
+```sql
+SELECT COUNT(*)
+FROM health.user_logs;
+```
+
+The next step is to apply this same `COUNT(*)` method - but on a deduplicated version of the dataset.
+
+So in the end - we actually need to remove duplicates first to even figure out if we have duplicates…talk about redundancy!
+
+Although that previous roundabout notion of removing duplicates to find out if we have duplicates is slightly confusing - actually removing duplicates from a table is not confusing at all.
+
+We can apply the same `DISTINCT` keyword we’ve used previously to do this like so:
+
+```sql
+SELECT DISTINCT *
+FROM health.user_logs;
+```
+
+The next part of the duplicate identification recipe is to count the number of rows in this deduplicated dataset.
+
+So, you’re probably thinking - no worries, all I need to do is something like this
+
+```sql
+SELECT COUNT(DISTINCT *)
+FROM health.user_logs;
+```
+
+**Unfortunately** for us - PostgreSQL does not allow for this style of `COUNT(DISTINCT *)` syntax like we can use on a single column!
+
+There are some other flavours of SQL that actually allow for this syntax namely Teradata, however it is not a standard operation which we can use everywhere.
+
+However, it is relatively straightforward to get around this!
+
+There are a few schools of thought on how exactly this COUNT DISTINCT should be done - I’ll show you a few different ways and then suggest you which one I recommend to use so you can gain exposure to more SQL techniques.
+
+Take special note of the differences between the SQL syntax for each method.
+
+___
+
+<br>
+
+## Hello, Subqueries!
+A subquery is essentially a _query within a query_ - in this case we want to use our `DISTINCT *` output in the innermost nested query as a data source for the outer query.
+
+Take note of the syntax - especially the AS component because **subqueries must always have an alias!**
+    
+
+#### _Example Exercise_:
+
+
+```sql
+SELECT COUNT(*)
+FROM (
+SELECT DISTINCT *
+FROM health.user_logs
+) AS distinct_health_sq;
+```
 |count|
 |:----|
-|16|
-___
+|31004|
 
-## `Group By` Counts
-Although the unique values or a `distinct` count of one column can be very useful when answering certain types of data questions - we can take this style of analysis further by using the `GROUP BY` clause with a `COUNT` aggregate function to help us generate a basic frequency value counts output.
-
-One way to think of the `GROUP BY` is to imagine our dataset being divided into different groups based off the values of selected columns.
-
-Say for example - we would like to answer the following question:
-
-#### Example Exercise:
-
-1. What is the frequency of values in the rating column in the film_list table?
-
-
-```sql
-SELECT 
-  rating,
-  COUNT(*)
-FROM dvd_rentals.film_list
-GROUP BY rating;
-```
-
-| rating | count|
-|:---|:-----|
-|NC-17| 210|
-|R|193|
-|PG-13|223|
-|PG|194|
-|G|177|
-
-___
-
-<br>
-
-### Apply Aggregate Count Function
-Once we have split the dataset into the groups specified for the `GROUP BY` we then apply the **aggregate** function within each of these grouped datasets to condense our output to a single row from each group.
-*  Sample table result above in previous section
-    
-In future tutorials, we will use this exact same construct to apply different type of mathematical aggregate functions to `GROUP BY` example such as `SUM`, `MEAN`, `STDDEV`, `MAX` and `MIN` - more on this soon!
-
-* The important thing to note for `GROUP BY` aggregate functions is this:
-> Only **1** row is returned for each group
-
-<br>
-
-This is a super important concept - true mastery of SQL requires a really strong understanding of this `GROUP BY` usage. If you don’t retain anything else from this section - please remember that only 1 row will ever be returned for each individual group from a `GROUP BY` !
-
-Only the expression that is used in the `GROUP BY` grouping elements will be returned along with a single column value for each aggregate function used in the column expressions for the `SELECT` statement.
-
-___
-
-<br>
-
-### Single Column Value Counts
-Now that we understand well what is going on under the hood with our simple but powerful `GROUP BY` clause - let’s apply it to the real complete dataset!
-
-For the following code snippet - take special attention to the order of the syntax.
-
-The `GROUP BY` must be used after the **FROM** statement otherwise you will get a syntax error and your SQL code will not run
-    
-
-#### Example Exercises:
-
-1. What is the frequency of values in the category column in the film table? - `Limit` 2
-
-```sql
-SELECT 
-  category,
-  COUNT(*)
-FROM dvd_rentals.film_list
-GROUP BY category
-LIMIT 2;
-```
-|category|count|
-|:------|:------|
-|Sports|73|
-|Classics|57|
-
-<br>
-
-2. What is the frequency of values in the category column in **ASC** order? - `Limit` 2
-
-```sql
-SELECT 
-  category,
-  COUNT(*) as frequency
-FROM dvd_rentals.film_list
-GROUP BY category
-ORDER BY frequency
-LIMIT 2;
-```
-
-|category|frequency|
-|:------|:------|
-|Music|51|
-|Travel|56|
-
-
+> The innner (nested query pulls all the distinct rows) and the outer query counts the total rows from the pulled distinct nested query return
 
 ___
 

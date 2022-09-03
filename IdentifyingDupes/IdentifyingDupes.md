@@ -214,60 +214,75 @@ ___
 
 <br>
 
-### Adding a Percentage Column - **BONUS**
-This following section is an optional bonus component as it will touch on some SQL techniques which we have yet to cover so far in this course!
+## Common Table Expression
+CTE stands for **Common Table Expression** - and when we compare it to something simple like Excel, we can think of CTEs as transformations applied to raw data inside an existing Excel sheet.
 
-Sometimes the frequency is just not enough to really understand the frequency at a quick glance, so we like to create an additional **percentage** column to our dataset.
+A CTE is a SQL query that manipulates existing data and stores the data outputs as a new reference, very similar to storing data in a new temporary Excel sheet (following the Excel analogy!)
 
-There are actually various ways to perform this operation but I will keep things simple and show you the most efficient way using a modified window function combining both `SUM` and `COUNT` functions with an `OVER()` clause.
+Subsequent CTEs can refer to existing datasets, as well as previously generated CTEs. This allows for quite complex nested queries and operations to be performed, whilst keeping the code nice and readable!
 
-Take note of that `::NUMERIC` right after the `COUNT(*)` - this is to avoid the dreaded integer floor division 
-
-* We can also multiple this percentage value by 100 and round it to 1 decimal place using a `ROUND` function.
-  + **COUNT(*)::NUMERIC** returns the grouped by column total count and multiplies by 100 for non fractional percentage w/round function below
-  + **SUM(COUNT(*))** returns the total rows that is being divided against to see the percentage for the grouped column 
-    + Ex : 223 * 100 / 997 =  22.37
+We will be using CTEs a lot throughout this course - if you find yourself being overwhelmed by this, just remember that these are just like new Excel sheets generated with new data. You will definitely get used to this after we solve 100+ questions using them :)
 
 ```sql
-SELECT
-  rating, 
-  COUNT(*) AS frequency,
-  ROUND(
-    100 * COUNT(*)::NUMERIC / SUM(COUNT(*)) OVER(),
-    2
-  ) AS percentage
-FROM dvd_rentals.film_list
-GROUP BY rating
-ORDER BY frequency DESC
-LIMIT 5;
+WITH deduped_logs AS (
+  SELECT DISTINCT *
+  FROM health.user_logs
+)
+SELECT COUNT(*)
+from deduped_logs;
 ```
-|rating|frequency|percentage|
-|:------|:------|:-------|
-|PG-13|223|22.37|
-|NC-17|210|21.06|
-|PG|194|19.46|
-|R|193|19.36|
-|G|177|17.75|
+|count|
+|:----|
+|31004|
+
+> CTE is a sequential way and instead of reading inside out (with a subquery), the expression can be read top to bottom. A fair bit easier to digest!
+
+___
 
 <br>
 
-> Without Round function called on Window Function
+## Temporary Tables 
+Whilst we could use **subqueries** and **CTEs** to capture the output directly in a single query - we can also create a temporary table with only the unique values of our dataset after we run the `DISTINCT` query.
+
+This is a very common approach when you know that you will only be analyzing the deduplicated dataset, and you will ignore the original one with duplicates.
+
+The main benefit of using temporary tables is removing the need to always run the same `DISTINCT` command everytime you want to run a query on the deduplicated records.
+
+Temporary tables can also be used with **indexes** and **partitions** to speed up performance of our SQL queries - something which we will cover later!
+
+There is a lengthier process to dealing with temporary tables, which is a multi-step ordeal!
+
+First we run a `DROP TABLE IF EXISTS` statement to clear out any previously created tables
+In practice - we like to make sure all the temporary tables we create are “clean” and often we will clear out any tables with the same target name as our new temporary table, just in case or better safe than to be sorry!
+
+Be very super careful when running this following DROP TABLE statement as you can’t really undo things when you drop an actual table…
+
+Well…I guess you can always restart your Docker environment and a fresh version of this database will be ready for you - but just know that you can really do some damage if you carelessly drop production tables in the workplace. You’ve been warned!!!
+
+> `DROP TABLE IF EXISTS deduplicated_user_logs`;
+
+<br>
+
+* Next let’s create a new temporary table using the results of the query below
+
 ```sql
-SELECT 
-  rating,
-  COUNT(*) AS frequency,
-  COUNT(*)::NUMERIC / SUM(COUNT(*)) OVER() AS percentage
-FROM dvd_rentals.film_list
-GROUP BY rating
-ORDER BY COUNT(*) DESC;
+CREATE TEMP TABLE deduplicated_user_logs AS
+SELECT DISTINCT *
+FROM health.user_logs;
 ```
-|rating|frequency|percentage|
-|:------|:------|:-------|
-|PG-13|223|0.22367101303911735206|
-|NC-17|210|0.21063189568706118355|
-|PG|194|0.19458375125376128385|
-|R|193|0.19358074222668004012|
-|G|177|0.17753259779338014042|
+* Take note of the syntax for the first line in the above query, particularly the **AS** at the end of the line which tells SQL to use the output from the following query to populate the newly created table
+
+<br>
+
+> With the temporary table in place now holding all distinct records, the newly created table can be queried
+
+```sql
+SELECT COUNT(*)
+from deduplicated_user_logs;
+```
+|count|
+|:----|
+|31004|
 
 
 
@@ -275,118 +290,202 @@ ___
 
 <br>
 
-## Counts For Multiple Column Combinations
-Previously we have been looking at the unique values for just 1 column. In this section we will demonstrate how best to analyse combinations of 2+ columns.
+## Which to choose??
 
-The simplest way to do this is to apply the same `GROUP BY` clause and just specify additional columns in the grouping element expressions at the bottom of the SQL statement.
+Generally a choice in which of the three options serves best can be guided by the following question
 
-When we use `GROUP BY` on 2+ columns, the subsequent `COUNT` function will aggregate the records based off the unique combination of values in these columns instead of just a single 1.
-
-It is quite common to see queries to profile specific columns by descending frequency like the following example.
-
-Note that the syntax is very similar to the previous GROUP BY example but with the addition of more columns in both the `SELECT` statement and the following `GROUP BY` clause.
+> Will I need to use the deduplicated data later?
 
 <br>
 
-#### Example Exercise:
+If yes - opt for temporary tables.
 
-1. What are the 5 most frequent rating and category combinations in the film_list table? - `Limit` 5
+If no - CTEs are your friend.
 
-```sql
-SELECT
-  rating,
-  category,
-  COUNT(*) AS frequency
-FROM dvd_rentals.film_list
-GROUP BY rating, category
-ORDER BY frequency DESC
-LIMIT 5;
-```
+Usually we would not recommend subqueries as they are less readable than CTEs - making it more difficult for others to quickly understand your code!
 
-|rating|category|frequency|
-|:------|:------|:-------|
-|PG-13|Drama|22|
-|NC-17|Music|20|
-|PG-13|Foreign|19|
-|PG-13|Animation|19|
-|NC-17|New|18|
-
-___
-
-<br>
-
-## Using Positional Numbers Instead of Column Names
-
-This is actually quite an important note because you will run into this sooner or later in any SQL situation!
-
-Some SQL developers like to refer to target columns used in `GROUP BY` and `ORDER BY` clauses by the **positional** number that the columns appear in the `SELECT` statement.
-
-Be mindful that this is usually just a stylistic choice made by different developers in different teams and there is no right or wrong when it comes to this!
-
-For example using our previous code snippet with just a `GROUP BY` clause to demonstrate what we mean by this:
-
-```sql
-SELECT
-  rating,
-  category,
-  COUNT(*) AS frequency
-FROM dvd_rentals.film_list
-GROUP BY 1,2
-```
-
->Although this may look quite clean - often times it could become actually harder to read and very prone to making mistakes when you are writing the code!
-
-I would recommend sticking with complete column names where possible, sometimes you can use numbers in the `GROUP BY` clause for a huge amount of columns instead of listing them all out explicitly - but be sure to be very clear with your expression inputs for the `ORDER BY` clause to maximise readibility and comprehension for anyone reading your code!
-
-* Tough to Interpret
-```sql
-SELECT
-  rating,
-  category,
-  COUNT(*) AS frequency
-FROM dvd_rentals.film_list
-GROUP BY 1,2
-ORDER BY 3 DESC
-LIMIT 5;
-```
-* Better 
-```sql
-SELECT
-  rating,
-  category,
-  COUNT(*) AS frequency
-FROM dvd_rentals.film_list
-GROUP BY 1,2
-ORDER BY frequency DESC
-LIMIT 5;
-``` 
-
-* **Best!**
-```sql
-SELECT
-  rating,
-  category,
-  COUNT(*) AS frequency
-FROM dvd_rentals.film_list
-GROUP BY rating, category
-ORDER BY frequency DESC
-LIMIT 5;
-```
+CTE's are an elegant and easilier understood way to digest such operations. Also much easier to debug!
 
 ---
 
 <br>
 
-## Exercises
-These exercises will take a quick look at the other tables within the dvd_rentals schema.
-> SQL Answers are in subsequent file in Folder
+## Comparing Counts
 
-1. Which actor_id has the most number of unique film_id records in the dvd_rentals.film_actor table?
-2. How many distinct **fid** values are there for the three most common price values in the dvd_rentals.nicer_but_slower_film_list table?
-3. How many unique country_id values exist in the dvd_rentals.city table?
-4. What percentage of overall total_sales does the Sports category make up in the dvd_rentals.sales_by_film_category table?
-5. What percentage of unique fid values are in the Children category in the dvd_rentals.film_list table?
+OK so going back to our original purpose of detecting the presence of duplicate records in our dataset - can you figure out the logical conclusion to this exercise?
 
+We now have the row counts of the original table **43,891** and of our deduplicated table **31,004**
+
+It’s pretty safe to say that we have some deuplicate records!
+
+By comparing the counts of the original and the deduplicated, we can prove the presence of duplicates.
+
+But is that all we can do with these duplicate values…what if we wanted to know more?
+
+Also what do you think of this labourious effort of having to calculate counts for both tables and manually comparing them?
+
+What if there was another way to do this…
+
+--- 
+
+<br>
+
+## Group By Counts On All Columns
+
+> This technicque will allow you to gather a Count of each duplicated row (along with individual rows) but will `Have` a shot at that next :)
+
+The trick is to use a `GROUP BY` clause which has every single column in the grouping element and a `COUNT` aggregate function - this is an elegant solution to quickly find the unique combinations of all the rows.
+
+Hang on a second…isn’t that exactly what the `DISTINCT` keyword is supposed to do?
+
+Yes - that’s correct! The only difference here is that we can also apply the aggregate function with the `GROUP BY` clause to find the counts for the unique combinations which we touched upon in the previous tutorial!
+
+Elegant, right? Well - here is the SQL statement to do this:
+
+```sql
+SELECT
+  id,
+  log_date,
+  measure,
+  measure_value,
+  systolic,
+  diastolic,
+  COUNT(*) AS frequency
+FROM health.user_logs
+GROUP BY
+  id,
+  log_date,
+  measure,
+  measure_value,
+  systolic,
+  diastolic
+ORDER BY frequency DESC
+```
+| id | log_date | measure | measure_value | systolic | diastolic | frequency
+|----|---------|---------|---------|--------|----|------|
+|054250c|2019-12-06|blood_glucose|401|null|null|104
+|054250c|2019-12-05|blood_glucose|401|null|null|77
+|d696925d|2020-05-07|blood_glucose|224|0|0|1
+
+Notice how the frequency for some of these values is 1 - whilst some are greater than 1?
+
+This is exactly how we know which unique combinations of the columns have duplicates!
+
+Now there is a final piece of the puzzle which will help us extract the duplicate records only.
+
+---
+<br>
+
+## Having Clause For Unique Duplicates
+Now the final step is to use the `HAVING` clause to further trim down our output by applying a condition on the same `COUNT(*)` expression we were using for the frequency column we created in our previous query.
+
+Since we only want the duplicate records to be returned - we would like that `COUNT(*)` value to be greater than 1.
+
+I will also show you an extra hack here for our SQL query where we can actually use the same * as we’ve used previously to replace all those columns that we specified in the `SELECT` expressions in our query.
+
+This is totally optional and non-standard as it’s actually more difficult to read than listing out all the columns in the order that they appear in the dataset, but it does make for slightly neater looking code so I thought I might as well show you another option!
+
+Note that we **cannot** use the same * within the `GROUP BY` grouping elements as it will throw a syntax error.
+
+To drill our previous knowledge - let’s go ahead and create a new temporary table called `duplicate_record_counts` in our following query.
+
+<br>
+
+```sql
+-- Don't forget to clean up any existing temp tables!
+DROP TABLE IF EXISTS unique_duplicate_records;
+
+CREATE TEMPORARY TABLE unique_duplicate_records AS
+SELECT *
+FROM health.user_logs
+GROUP BY
+  id,
+  log_date,
+  measure,
+  measure_value,
+  systolic,
+  diastolic
+HAVING COUNT(*) > 1;
+
+-- Finally let's inspect the top 10 rows of our temp table
+SELECT *
+FROM unique_duplicate_records
+LIMIT 10;
+```
+
+> Truncated Output
+
+| id | log_date | measure | measure_value | systolic | diastolic | 
+|----|---------|---------|---------|--------|----|
+|054250c69|2020-10-04|blood_glucose|170|null|null|
+|054250c69|22019-12-15|blood_glucose|79|0|0|
+|054250c69|2020-10-05|blood_glucose|323|null|null|
+
+---
+<br>
+
+## Retaining Duplicate Counts
+Let’s say for example - we want to know which exact records are duplicated - but also how many times they appeared. The output would look exactly like our output from the Group By Counts On All Columns section - but just without the rows where the frequency count was equal to 1.
+
+We can use our `CTE` approach with a `WHERE` filter condition to do this - note how the `CTE` component looks exactly same as the previous query - the only difference is the following `SELECT` statement.
+
+
+<br>
+
+```sql
+WITH groupby_counts AS (
+  SELECT
+    id,
+    log_date,
+    measure,
+    measure_value,
+    systolic,
+    diastolic,
+    COUNT(*) AS frequency
+  FROM health.user_logs
+  GROUP BY
+    id,
+    log_date,
+    measure,
+    measure_value,
+    systolic,
+    diastolic
+)
+SELECT *
+FROM groupby_counts
+WHERE frequency > 1
+ORDER BY frequency DESC
+LIMIT 10;
+```
+
+> Truncated
+
+| id | log_date | measure | measure_value | systolic | diastolic | 
+|----|---------|---------|---------|--------|----|
+|054250c69|2019-12-06|blood_glucose|104|null|null|
+|054250c69|2019-12-05|blood_glucose|77|0|0|
+|054250c69|2019-12-04|blood_glucose|72|null|null|
+
+
+---
+<br>
+
+## Ignoring Duplicate Values
+By now you are probably sick of this talk about duplicates and how to deal with them - why am I now telling you that maybe we should just ignore them?
+
+Let’s think back to the context of our dataset here.
+
+For context, this real world messy dataset captures data taken from individuals logging their health measurements via an online portal throughout the day.
+
+For example, multiple measurements can be taken on the same day at different times, but you may notice this information is missing as the log_date column does not show timestamp values!
+
+Welcome to the real world of messy datasets :)
+
+That part about multiple measurements could be critical in the approach we wish to take with these duplicates.
+
+Sometimes what we, as data analytics professionals or SQL developers, perceive as duplicates might actually not be duplicates after all - they could just be valid data points! I hope this example drills home the main point about duplicate data points - we must always think critically about the data that we have and what it really represents in terms of actual behaviour or processes that create them!
+
+---
 
 <br>
 
@@ -402,5 +501,9 @@ The following concepts, methods were covered above
 * Efficiently calculate the counts percentage for groups using window functions
 
 > Ensure that any numeric agg function applied should cast either the top or bottom term (column value ) to a `::NUMERIC` type to avoid Integere floor division scenarios!
+
+<br>
+
+> Exercises in non lecture sql file in same root folder!
 
 

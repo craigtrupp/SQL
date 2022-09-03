@@ -1,15 +1,35 @@
--- 1. Which actor_id has the most number of unique film_id records in the dvd_rentals.film_actor table?
+-- 1. Highest Duplicate: WWhich id value has the most number of duplicate records in the health.user_logs table??
+WITH groupby_counts AS (
+  SELECT
+    id,
+    log_date,
+    measure,
+    measure_value,
+    systolic,
+    diastolic,
+    COUNT(*) AS frequency
+  FROM health.user_logs
+  GROUP BY
+    id,
+    log_date,
+    measure,
+    measure_value,
+    systolic,
+    diastolic
+)
 SELECT
-  actor_id,
-  COUNT(DISTINCT film_id) AS films_acted_in
-FROM dvd_rentals.film_actor
-GROUP BY actor_id
-ORDER BY films_acted_in DESC
+  id,
+  SUM(frequency) AS total_user_duplicates
+FROM groupby_counts
+WHERE frequency > 1
+GROUP BY id
+ORDER BY total_user_duplicates DESC
 LIMIT 1;
 
--- |actor_id|films_acted_in|
--- |:------|:------|
--- |107|42|
+-- |id|total_user_duplicates|
+-- |054250c692e07a9fa9e62e345231df4b54ff435d|17279|
+
+-- Note that SUM() is needed when querying the CTE as the frequency value is greater than 1 what we're looking for, A COUNT() would just return the user with the most duplicate rows (not how many times they had been duplicated!)
 
 -- 2. How many distinct **fid** values are there for the three most common price values in the dvd_rentals.nicer_but_slower_film_list table?
 SELECT 

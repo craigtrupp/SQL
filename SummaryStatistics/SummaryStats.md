@@ -382,3 +382,122 @@ FROM sample_data;
 variance_value|standard_dev_value|mean_value|median_value|mode_value
 |----|-----|-----|-------|------|
 |1340.99|36.62|113.10|114|148|
+
+<br>
+
+So now we have the raw values - but there is still a question isn’t there…what do they ACTUALLY mean????
+
+<br>
+
+## Interpreting Spread
+___
+We’ve talked about the variance and standard deviation being a measure of spread - but what do we mean by this?
+
+One of the best examples to explain this is to take a look at the humble **bell curve**, or **normal distribution**.
+
+Now there is a huge caveat to this explanation in that - data is not **ALWAYS** normally distributed. 
+*   In fact, lots of messy datasets are totally not normally distribute
+
+<br>
+
+### Normal Distribution
+Back when we would get our test grades, we were told our exam score and a percentile value, and this is exactly where the distribution comes into play!
+
+The percentile relates to how I performed compared to others who took the test. So you might be asking - how do we calculate this percentile? Well, it depends on a few factors, but in technical terms, we use the available data (the exam scores) to generate a normal distribution by using:
+
+* The average or the mean score of all exam takers
+* The spread or the standard deviation/variance of the score values
+
+So let’s say for a specific test - I had scored 95, the average score was 75 and the standard deviation was 10 - on the back of my results, there would be a chart that looked like this with my percentile score inside the red box:
+
+![Test Scores Distribution](Distribution.png "Test Distribution")
+
+* To interpret our sample score: It had beaten ~97% of other test takers based off the mean and standard deviation statistics.
+
+<br>
+
+But let’s say that for a different example - the average score was slightly lower at 60 and the standard deviation was also higher at 15:
+
+![Test Scores Second](SecondDist.png "Test Distribution")
+
+In this example test - I would have beaten ~99% of other test takers with my score of 95.
+
+* If you take a look at the X axis for both of the above charts - what do you notice about the “spread” of the values around that mean value?
+
+* This increase in standard deviation value sees a subsequent “spread” in the possible x-values - and this is exactly what we’d expect when we apply the same standard deviation metrics to our data - even though they might not be normal distributions!
+
+Also a sidenote: did you know that we also refer to the mean as the “first moment” and the variance as the “second moment” in probability and statistics?
+
+___
+<br>
+
+## The Empirical Rule or Confidence Intervals
+One other way to interpret the standard deviation is the **Empirical Rule**
+
+Essentially if our data is approximately normally distributed (it looks like a bell curve) - we can make rough generalisations about how much percentage of the total lies between different ranges related to our standard deviation values.
+
+These boundaries are also known as confidence intervals or confidence bands - ranges where we are fairly sure that the data will lie within!
+
+
+|Percentage of Values| Range of Values|
+|----------|-----------------|
+|68%|μ±σ (mean + or - one stdv)| 
+|95%| μ±2*σ (mean + or - two stdv)|
+|99.7%|μ±3*σ (mean + or - three stdv)|
+
+<br>
+
+* Quite commonly we will refer to these ranges as “one standard deviation about the mean” contains 68% of values etc.
+
+![CI STDV Levels](CILevelsBellCurve.png "Bell Curve")
+
+
+___
+
+<br>
+
+# Calculating All The Summary Statistics
+* Finally, let's calculate all the summary statistics for measure_value when our measure is weight
+
+```sql
+SELECT
+  'weight' AS measure,
+  ROUND(MIN(measure_value), 2) AS minimum_value,
+  ROUND(MAX(measure_value), 2) AS maximum_value,
+  ROUND(AVG(measure_value), 2) AS mean_value,
+  ROUND(
+    -- this function actually returns a float which is incompatible with ROUND!
+    -- we use this cast function to convert the output type to NUMERIC
+    CAST(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY measure_value) AS NUMERIC),
+    2
+  ) AS median_value,
+  ROUND(
+    MODE() WITHIN GROUP (ORDER BY measure_value),
+    2
+  ) AS mode_value,
+  ROUND(STDDEV(measure_value), 2) AS standard_deviation,
+  ROUND(VARIANCE(measure_value), 2) AS variance_value
+FROM health.user_logs
+WHERE measure = 'weight';
+```
+|measure|minimum_value|maximum_value|mean_value|median_value|mode_value|standard_deviation|variance_value|
+|-----|-----|----|-----|-------|------|-----|-------|
+|weight|0|39642120.00|28786.85|75.98|68.49|1062759.55|1129457862383.41|
+
+<br>
+However - again we need to ask ourselves: WHAT DOES THIS REALLY MEAN??????
+
+* We will continue pondering this big question in the following tutorial!
+
+<br>
+
+## Conclusion
+___
+* Central location statistics including: mean, median and mode
+* Simple algorithm approach to calculate the median and mode
+* How to implement Ordered Set Aggregate Functions to calculate the 50th percentile value of a dataset (in other words - the median)
+* Spread statistics including: min, max, range, standard deviation and variance
+* Basic understanding of the Normal Distribution, The Empirical Rule, confidence intervals and their relation to the mean and standard deviation
+WHERE filters to narrow down a set of data based off a certain condition measure = 'weight'
+* Using ROUND to limit numeric outputs to 2 decimal places for nicer presentation
+Mathematical equations for mean and standard deviation

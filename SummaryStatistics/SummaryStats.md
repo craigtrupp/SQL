@@ -28,7 +28,7 @@ ___
 
 <br>
 
-## Central Location Statistics
+# Central Location Statistics
 
 Location statistics are something I’m sure you’ve come across - mainly the **mean**, **median** and **mode** values.
 
@@ -36,11 +36,10 @@ They are all measures of the central location summary statistics and are often u
 
 The implementation of each metric is different so be sure to read through the code snippets and run them in your SQL environment!
 
-
-___
 <br>
 
 ## Arithmetic Mean or Average
+___
 
 The Arithmetic Mean or Average is something I’m sure you’ve seen in the past. It’s definition is simply 
 * the sum of all values divided by the total count of values for a set of numbers.
@@ -136,7 +135,7 @@ When you think of the underlying steps of calculating the median or the mode - t
 ```python
 import random as rd
 import numpy as np
-#Generate 1-100 with even or odd amount using multiple libraries
+#Generate 1-100 with even or odd amount using multiple libraries##
 random_ints = []
 np_random_ints = []
 for i in range(14):
@@ -173,9 +172,213 @@ def returnMedian(lst):
 ```
 <br>
 
-Mode Algorithm
+### Mode Algorithm
 Calculate the tally of values similar to a GROUP BY and COUNT
 The mode is the values with the highest number of occurences
 
+1. Calculate the tally of values similar to a GROUP BY and COUNT
+The mode is the values with the highest number of occurences
+2. The mode is the values with the highest number of occurences
 
+<br>
+
+To implement these “algorithms” we need to use what are called **Ordered Set Aggregate Functions** in PostgreSQL.
+
+Some flavours of SQL actually have implemented median and mode values as regular functions - but we will demonstrate how to implement them in our current PostgreSQL flavour for completeness!
+
+Let’s use that same example data from above in a CTE to demonstrate the PostgreSQL implementations of the median and mode functions.
+
+```sql
+WITH sample_data (example_values) AS (
+ VALUES
+ (82), (51), (144), (84), (120), (148), (148), (108), (160), (86)
+)
+SELECT
+  ROUND(AVG(example_values),2) AS mean_value,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY example_values) AS median_value,
+  MODE() WITHIN GROUP (ORDER BY example_values) AS mode_value
+from sample_data;
+```
+|mean_value|median_value|mode_value|
+|----|-----|-----|
+|113.10|114|148|
+
+<br>
+
+For now - there is not much to add for the SQL implementation of these median and mode values, apart from the fact that they are a little bit annoying…
+
+Let’s also use this same syntax to calculate our median and mode values for our health.user_logs dataset for the weight measurements only - what happens when we compare it with the average value?
+
+```sql
+-- Quickly Refresht on Distinct values for columns : [blood_glucose, blood_pressure, weight]
+-- Let's get the Centrality measures for Weight
+
+SELECT DISTINCT(measure)
+FROM health.user_logs;
+
+SELECT
+    ROUND(AVG(measure_value),2) AS mean_value,
+    MODE () WITHIN GROUP (ORDER BY measure_value) AS mode_value,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY measure_value) AS median_value
+FROM health.user_logs
+WHERE measure = 'weight';
+```
+mean_value|mode_value|median_value|
+|----|-----|-----|
+|28786.85|68.49244787|75.976721975|
+
+* Now that's a bit concerning, it appears that some outliers may exist that are significantly impacting our average
 ___
+
+<br>
+
+# Spread of the Data
+The previous summary statistics all show different measures regarding the central tendancy of a set of observations.
+
+Although these are interesting, we also like to see summary statistics about the spread of the data.
+
+Just like we can spread peanut butter from edge to edge of a piece of toast - we usually think of spread in terms of how is our data distributed?
+
+This will make more sense once we cover a few more statistics concepts!
+
+<br>
+
+## Min, Max & Range
+___
+The minimum and maximum values of observations in a dataset help us identify the boundaries of where our data exists.
+
+We use the range calculation to show the total possible limits of our data by simply calculating the difference between the max and min values from our data.
+
+Luckily the implementations in SQL are straightforward unlike the mode and median calculations! Also the MAX and MIN functions are portable across different flavours of SQL.
+
+There is no built-in implementation of range, but we can simply subtract the MIN from the MAX value as shown below with the weight values:
+
+```sql
+SELECT
+  MIN(measure_value) AS minimum_value,
+  MAX(measure_value) AS maximum_value,
+  MAX(measure_value) - MIN(measure_value) AS range_value
+FROM health.user_logs
+WHERE measure = 'weight';
+```
+minimum_value|maximum_value|range_value|
+|----|-----|-----|
+|0|39642120|39642120|
+
+<br>
+
+### CTE (Min & Max Efficiency)
+If you feel the need for speed - this following query below is actually slightly more efficient because it doesn’t duplicate the MIN and MAX calculations on the entire dataset but rather just takes the calculated values for the range metric following the CTE in the following query"
+
+Remember what we mentioned about SQL query performance and the number of rows in our datasets? This is one simple example of this exact case where we reduced the number of rows down from the total size of the health.user_logs down to just 2 numbers!
+
+You can confirm this speedup by putting a EXPLAIN ANALYZE in front of each query and taking a look at the output, especially the Execution Time values.
+
+We will touch upon these optimizations and more later on in the course because let’s be real here - who doesn’t like their queries to run faster?!?
+
+```sql
+EXPLAIN ANALYZE
+WITH min_max_values AS (
+  SELECT
+    MIN(measure_value) AS minimum_value,
+    MAX(measure_value) AS maximum_value
+  FROM health.user_logs
+  WHERE measure = 'weight'
+)
+SELECT
+  minimum_value,
+  maximum_value,
+  maximum_value - minimum_value AS range_value
+FROM min_max_values;
+
+-- Output would be the same for the table defined above 
+```
+___
+
+<br>
+
+# Variance & Standard Deviation
+The minimum and maximum values and the range are important to know for sure, but the real statistics stuff starts in when we start thinking about variance and standard deviation.
+
+These two important values are used to describe the **“spread”** of the data about the mean value. Also, the **variance** is simply the square of the standard deviation. So once we know how to calculate one of these - we know both of these!
+
+OK - the simplest way to learn more about these metrics is to develop an algorithm to calculate them
+
+<br>
+
+## Variance Algorithm
+___
+Before we dive straight into the algorithms itself - it’s important to understand the mathematical formula for the variance value.
+
+We often use σ as the mathematical symbol for standard deviation and σ2 for variance. Do you remember what the μ symbol stands for?
+
+* The **variance** is the sum of the (difference between each X value and the mean) squared, divided by N - 1, 1 less than the total number of values.
+    + Squared to account for negative distances from the mean to get an absolute relative distance 
+
+<br>
+
+Let’s return to our original sample data example to explain our variance algorithm:
+
+Consider the following data set with 10 numbers: [82,51,144,84,120,148,148,108,160,86]
+
+<br>
+
+First we calculate the mean:
+    
+    μ=82+51+144+84+120+148+148+108+160+86 / 10 = 113.1
+
+Next We Need the Squared Difference
+Let’s take the first value of 82 from our dataset:
+
+    (82−113.1) ** 2 = 967.21
+
+Now imagine we do this for all of our values to obtain the following numerator of our variance formula divided by 1 less than the total number of records we have in our dataset:
+
+    (82−113.1)**2+(51−113.1)**2+...+(86−113.1)**2 / 10 - 1 = 1340.99
+
+Finally let’s take a look at the single standard deviation σ value by taking the square root of our previous calculated value.
+
+    σ = 36.62
+
+
+### Similar Python Like Algorithm
+```python
+test_set = [82,51,144,84,120,148,148,108,160,86]
+
+def variance_stdv(lst):
+    """
+    Return Variance and Stdv : Variance Algorithm Outputs
+    Arguments:
+        lst : list of integers to pass to function
+    Returns:
+        Variance & Stddeviation
+    """
+    import math
+    mean = round(sum(lst)/len(lst),2)
+    squared_differences = [round((x - mean)** 2, 2) for x in lst]
+    variance = round(sum(squared_differences)/(len(lst) - 1),2)
+    std_dev = round(math.sqrt(variance),2)
+    return mean, squared_differences, variance, std_dev;
+
+print(variance_stdv(test_set))
+# (113.1, [967.21, 3856.41, 954.81, 846.81, 47.61, 1218.01, 1218.01, 26.01, 2199.61, 734.41], 1340.99, 36.62)
+```
+
+This is what it looks like in SQL to add onto our previous example:
+
+```sql
+WITH sample_data (example_values) AS (
+ VALUES
+ (82), (51), (144), (84), (120), (148), (148), (108), (160), (86)
+)
+SELECT
+  ROUND(VARIANCE(example_values), 2) AS variance_value,
+  ROUND(STDDEV(example_values), 2) AS standard_dev_value,
+  ROUND(AVG(example_values), 2) AS mean_value,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY example_values) AS median_value,
+  MODE() WITHIN GROUP (ORDER BY example_values) AS mode_value
+FROM sample_data;
+```
+variance_value|standard_dev_value|mean_value|median_value|mode_value
+|----|-----|-----|-------|------|
+|1340.99|36.62|113.10|114|148|

@@ -51,9 +51,9 @@ In this following section I am going to introduce you to your new best friend:
 
 * So what does this mean? Let’s explain a bit further with the help of some algorithms and reverse-engineering!
 
-<br>
-
 ____
+
+<br>
 
 ## Reverse Engineering
 
@@ -67,11 +67,9 @@ ____
     Floor_value : represents a min type y_value
     Ceiling_value : represents a max value observed for percentile
     Percentile_counts : count of observed points in percentile
-
+___
 
 <br>
-
-___
 
 ## Algorithmic Thinking
 
@@ -113,9 +111,9 @@ Now that we know the endpoint of our analysis - let’s work from the bottom up 
 
 ![Distribution](SampBuckDist.png "Bucket 100%")
 
-<br>
-
 ___
+
+<br>
 
 ## SQL Implementation
 So how do we do this in SQL?
@@ -133,6 +131,114 @@ Everything below we’ve seen before except for the new `NTILE` window function 
 * We can actually achieve both of these algorithmic steps in a single bit of SQL functionality with the all-powerful **analytical function**
     + Window functions `OVER()` are analytical functions
 
-Firstly the `OVER` and `ORDER BY` clauses in the following query help us re-order the dataset by the `measure_value column` - it sorts by ascending order by default
+**Firstly** the `OVER` and `ORDER BY` clauses in the following query help us re-order the dataset by the `measure_value` column - it sorts by ascending order by default
+    + `ORDER BY` is instructing the `NTILE` function to assign a value from 1-100 for the percentile a observation **"buckets"** under for the measure_value weight cumulative distribution visualization we want to eventually perform
+
+**Then** the `NTILE` window function is used to perform the assignment of numbers 1 through 100 for each row in the records for each measure_value
+
+```sql
+SELECT
+  measure_value,
+  NTILE(100) OVER (
+    ORDER BY
+      measure_value
+  ) AS percentile
+FROM health.user_logs
+WHERE measure = 'weight'
+```
+
+![Bucketing](Ntile_Over.png "Ntile_Over")
+
+![Percentile Explaine](SQL_NTile_Exp.png "Analytical SQL Exp")
+
+<br>
+
+#### Individual Row Measure Percentiles to Aggregate Groups
+![Table Grouping](Perc_Min_Max.png "Desired Table")
+
+<br>
+
+### Bucket Calculations
+
+3. For each bucket:
+    + calculate the minimum value and the maximum value for the ceiling and floor values
+    + count how many records there are
+
+Since we now have our percentile values and our dataset is split into 100 buckets - we can simply use a `GROUP BY` on the **percentile column** from the previous table to calculate our `MIN` and `MAX` measure_value ranges for each bucket and also the `COUNT` of records for the percentile_counts field.
+
+* We can also use the previous query in a CTE so we can pull all the calculations in a single SQL query:
+
+```sql
+WITH percentiles as (
+    SELECT
+        measure_value,
+        NTILE(100) OVER(
+            ORDER BY measure_value
+        ) AS percentile
+    FROM health.user_logs
+    WHERE measure = 'weight'
+)
+SELECT 
+    percentile,
+    MIN(measure_value) AS floor_value,
+    MAX(measure_value) AS ceiling_value,
+    COUNT(percentile) AS percentile_counts
+FROM percentiles
+GROUP BY percentile
+ORDER BY percentile;
+```
+<br>
+
+#### Cumulative Distribution Function Table Result from SQL Implementation
+
+![Cumulative Distribution Outlay](Cumulative_Agg_Bins.png "Cumulative Distribution Function")
+
+___
+
+<br>
+
+## What Do I Do With This?
+
+So you’re probably asking yourself - ok cool…so what do I do with this cumulative distribution table then?
+The first place to take a careful look at is the tails of the values - namely `percentile = 1` and `percentile = 100`
+
+* What do you notice from these two rows alone?
+
+|percentile|floor_value|ceiling_value|percentile_counts|
+|----|-------|-----|------|
+|1|0|29.02988|28|
+|100|136.531192|39642120|27|
+
+<br>
+
+So from first glance you get the following insights right away:
+
+1. 28 values lie between 0 and ~29KG
+2. 27 values lie between 136.53KG and 39,642,120KG
+
+Please tell me that you don’t think insight number 2 is normal - unless you’re a GIANT!
+
+Let’s dive a little bit deeper and start thinking critically about what these insights mean.
+
+___
+
+<br>
+
+## Let's Think About This
+
+Ok - firstly we need to consider what the data point is that we’re actually using here - in this case, it is a weight value in KG units.
+
+When we think of those small values in the 1st percentile under 29kg, a few things should come to mind:
+
+1. Maybe there were some incorrectly measured values - leading to some 0kg weight measurements
+2. Perhaps some of the low weights under 29kg were actually valid measurements from young children who were part of the customer base
+
+
+* For the `100th` percentile we could consider:
+    + Does that 136KG floor value make sense?
+    + How many error values were there actually in the dataset?
+
+
+
 
 

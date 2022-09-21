@@ -262,7 +262,7 @@ When we think of those small values in the 1st percentile under 29kg, a few thin
 * **RANK** is the column highlighted
 * **DENSE_RANK** Furthest right column showing grouped like rankings for multiple equal ranks
 
-The key is to differentiate between what happens when there are **ties** between values - in particular for the `RANK` and `DENSE_RANK` functions.
+The key is to differentiate between what happens when there are **ties** between values - in particular for the `RANK` and `DENSE_RANK` functions
 
 <br>
 

@@ -100,3 +100,12 @@ SELECT
 FROM clean_weight_percentiles
 GROUP BY clean_percentile
 ORDER BY clean_percentile DESC;
+
+-- Width Bucket (Added a Subquery)
+SELECT
+  WIDTH_BUCKET(measure_value, (SELECT MIN(measure_value) FROM clean_weight_logs), (SELECT MAX(measure_value) FROM clean_weight_logs), 50) AS bucket,
+  AVG(measure_value) AS measure_value,
+  COUNT(*) AS frequency
+FROM clean_weight_logs
+GROUP BY bucket
+ORDER BY bucket;

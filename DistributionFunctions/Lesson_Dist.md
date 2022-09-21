@@ -443,7 +443,7 @@ ___
 * Apply critical thinking to accurately detect outliers in the upper and lower ranges of a column by inspecting the ordered top and bottom percentile values
 * Inspected the difference between `ROW_NUMBER`, `RANK` and `DENSE_RANK` window functions
 * Treat outliers in a dataset by applying a WHERE filter and creating a temporary table for further data analysis
-* Generate new summary statistics and a final cumulative distribution function output with a treated dataset cleaned of outliers
+* Generate new `summary statistics` and a `final cumulative distribution` function output with a treated dataset cleaned of outliers
 * Learned how to use SQLPad to create quick data visualizations for cumulative distribution function outputs
 * Apply the `WIDTH_BUCKET` function to create equally spaced buckets to create the data input for a histogram chart
 * Analyze various insights from cumulative distribution and frequency histrogram plots

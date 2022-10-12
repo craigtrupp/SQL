@@ -106,3 +106,55 @@ WHERE measure = 'weight';
 |-----|-------|--------|------|--------|--------|-------|------|
 |weight|0.00|39642120.00|28786.85|75.98|68.49|1062759.55|1129457862383.41
 
+---
+
+<br>
+
+## Check Cumulative Distributions
+* `WITH` denotes our `CTE - Common Table Expression` that is subsequently being queried 
+    * `NTILE` creates **#** of buckets for column to be grouped in (AKA percentile) that row assigns to
+        * Common to also use **Deciles** `NTILE(10)` to group a row's column value as a percent in a total distribution
+    * `OVER` Window function to perform the bucketing Over Result
+* Query CTE **'percentile_values'**
+    * Initially we're grouping by the percentile to perform a quick statistical view on each of our buckets (Query Origin/Reason) - `GROUP BY percentile` : query is grouping/aggregating all rows for that bucketed/percentile value
+    * `MIN`, `MAX`, `COUNT` used to get representatitve view for each buckets summary stats
+    * `ORDER BY` for percentile default ordering of `ASC` to show lower percentiles first
+```sql
+WITH percentile_values AS (
+  SELECT
+    measure_value,
+    NTILE(100) OVER(
+      ORDER BY 
+        measure_value
+    ) AS percentile
+    FROM health.user_logs
+    WHERE measure = 'weight'
+)
+SELECT 
+  percentile,
+  COUNT(*) AS percentile_counts,
+  MIN(measure_value) AS floor_value,
+  MAX(measure_value) AS ceil_value,
+  ROUND(AVG(measure_value), 2) AS mean_value,
+  ROUND(STDDEV(measure_value), 2) AS percentile_stdev,
+  ROUND(VARIANCE(measure_value),2) AS percentile_var
+FROM percentile_values
+GROUP BY percentile
+ORDER BY percentile;
+```
+![Cumulative Distribution](Images/CumulativeDist_CTE.png)
+
+<br>
+
+### Range Distribution
+![Range Distribution Value & Percentiles](../DistributionFunctions/Png/RngViz.png)
+
+---
+
+<br> 
+
+## Investigate Outliers
+
+<br>
+
+### Large Outlier Checking

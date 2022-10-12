@@ -254,11 +254,11 @@ When we think of those small values in the 1st percentile under 29kg, a few thin
     + (Think Golf here for tied for 2nd could be held by 3 other gophers!)
 + **DENSE_RANK**
     + Grouped by rank should measure values be equal
-    + Various equal measures can have the same rank unlike **RANK**
+    + Various equal measures can have the same rank unlike **ROW_NUMBER**
 
 ### Ranking Podium Visualization
 ![Ranking Functions Podium](Png/RnkFuncs.png "Ranking Functions Podium")
-* **ROW_NUMBER** is the value in **<span style="color : #D0021B">RED</span>** next to the finishes column showing the unique rank despite equally ranked measures 
+* **ROW_NUMBER** is the value in <span style="color : #D0021B">RED</span> next to the finishes column showing the unique rank despite equally ranked measures 
 * **RANK** is the column highlighted
 * **DENSE_RANK** Furthest right column showing grouped like rankings for multiple equal ranks
 

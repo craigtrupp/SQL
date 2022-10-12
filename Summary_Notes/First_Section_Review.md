@@ -158,3 +158,105 @@ ORDER BY percentile;
 <br>
 
 ### Large Outlier Checking
+* Using 100th percentile (ceiling grouped measure_values) we can look into how the values stack up in the same percentile with the various ranking methods 
+  * [`ROW_NUMBER`, `RANK`, `DENSE_RANK` ]
+* **ROW_NUMBER**
+    + Abritrarily picking "rank" based on how data is stored for equal values
+    + See how same measure value for first two rows were given different ranks besides same measure_value being ranked by
+* **RANK**
+    + One rank per measure (Same measures share highest unused rank)
+    + Equal ranked measures will hold subsequent ranks but be categorized as the highest unique rank
+    + (Think Golf here for tied for 2nd could be held by 3 other gophers!)
+    + Due to this, particular ranks can be skipped as can be seen at the bottom and top of the table image below
+* **DENSE_RANK**
+    + Grouped by rank should measure values be equal
+    + Various equal measures can have the same rank unlike **ROW_NUMBER**
+    + No ranks are skipped and count of grouped ranks has no impact on classifying (Ex : Multiple people sharing first but a second place `DENSE RANK` still existing for third measure value below)
+* Using the **Variance** & **Stdev** results from the percentiles above would also allow a quick insight to the distribution for the top/bottom percentiles (see top row for 1st percentile in SS above with a much larger standard deviation)
+
+```sql
+WITH percentile_values AS (
+  SELECT
+    measure_value,
+    NTILE(100) OVER (
+      ORDER BY
+        measure_value
+    ) AS percentile
+  FROM health.user_logs
+  WHERE measure = 'weight'
+)
+SELECT
+  measure_value,
+  ROW_NUMBER() OVER (ORDER BY measure_value DESC) as row_number_order,
+  RANK() OVER (ORDER BY measure_value DESC) as rank_order,
+  DENSE_RANK() OVER (ORDER BY measure_value DESC) as dense_rank_order
+FROM percentile_values
+WHERE percentile = 100
+ORDER BY measure_value DESC;
+```
+![100th Percentile Ranks](Images/TopPerc_Outliers_Rank.png)
+
+
+<br>
+
+### Small Outlier Detection
+* See above for related detail on ranking and review summary stats returns for particular percentiles to sniff out outliers
+```sql
+WITH percentile_values AS (
+  SELECT
+    measure_value,
+    NTILE(100) OVER (
+      ORDER BY
+        measure_value
+    ) AS percentile
+  FROM health.user_logs
+  WHERE measure = 'weight'
+)
+SELECT
+  measure_value,
+  ROW_NUMBER() OVER (ORDER BY measure_value) as row_number_order,
+  RANK() OVER (ORDER BY measure_value) as rank_order,
+  DENSE_RANK() OVER (ORDER BY measure_value) as dense_rank_order
+FROM percentile_values
+WHERE percentile = 1
+ORDER BY measure_value;
+```
+![Floor Percentile Deeper Look](Images/FloorPerc_Outlier_Rank.png)
+
+---
+
+<br>
+
+## Remove Outliers & Leverage (Temp Tables)
+* Using the measure_value percentiles snapshot above, we can determine that the top percentile has 3 outliers above 201 that we'd like to remove from the distribution to evaluate again after removing
+* The lower percentile should be double checked as there are some low values pulling that bucketed distribution variance and stdev out but not egregious like the top percentile
+* Standard to drop table (may not exist and return error : not to worry!), create the temp table and then a cumulative distribution can be stored for a particular area of interest in the temp table allowing for the distribution to be assessed
+
+```sql
+DROP TABLE IF EXISTS clean_weight_logs;
+CREATE TEMP TABLE clean_weight_logs AS (
+  SELECT *
+  FROM health.user_logs
+  WHERE measure = 'weight'
+    AND measure_value > 0
+    AND measure_value < 201
+);
+WITH clean_weight_percentile AS (
+  SELECT
+    measure_value,
+    NTILE(100) OVER (
+      ORDER BY 
+        measure_value
+    ) AS clean_percentile
+    FROM clean_weight_logs
+)
+-- Let's look at top percentile reference for now to ensure the outliers are gone
+SELECT 
+  measure_value,
+  clean_percentile
+FROM clean_weight_percentile
+WHERE clean_percentile = 100
+ORDER BY measure_value DESC
+LIMIT 10;
+```
+![Temp Table - Outlier Removal](Images/Temp_Table_OutlierRemoval.png)

@@ -260,3 +260,52 @@ ORDER BY measure_value DESC
 LIMIT 10;
 ```
 ![Temp Table - Outlier Removal](Images/Temp_Table_OutlierRemoval.png)
+
+---
+
+<br>
+
+## Frequency Distribution
+* Use of `WIDTH_BUCKET` SQL Function divides the distribution (column values) into equal width buckets
+* Each bucket has an equal size/interval
+  * The Frequency or count in the bucket will differ but that bucket's size of the distribution's value will be ~ equal
+* The function takes 
+  * The column (ex : measure_value)
+  * Min of the column
+  * Max of the column
+  * Number of buckets
+* Apply the `WIDTH_BUCKET` function to create equally spaced buckets to create the data input for a histogram chart
+
+```sql
+SELECT
+  WIDTH_BUCKET(measure_value, 0, 200, 50) AS bucket,
+  AVG(measure_value) AS avg_bucket_value,
+  MIN(measure_value) AS min_bucket_value,
+  MAX(measure_value) AS max_bucket_value,
+  COUNT(*) AS frequency
+FROM clean_weight_logs
+GROUP BY bucket
+ORDER BY bucket;
+```
+![Width Bucket SQL](Images/Width_Bucket_Hist.png)
+
+<br>
+
+### Visualizations (Bucketing) - Thanks SQLPad!
+
+### Configure
+![Configure Viz](Images/ConfigViz.png)
+* Set Vertical Bar Viz to give x-axis to # of buckets
+* Then set the outlay of histogram/count to the frequency for observed counts in that bucket
+* Vizual For this config shows each bucket on the x-axis and that bucket's total count in the y frequency axis
+
+![Configure Avg Value Bucket](Images/Avg_Val_Cnf.png)
+* Set Bar Label (X-axis) as Avg Bucket Value (Bucket Label lost but the value in bucket now on x-axis)
+* Similar to above, set frequency to that bar value to see Count
+* This will give details about the histogram's bucket avg value 
+
+<br>
+
+### Histograms
+![Histogram SQLite](Images/Hist_Bucket.png)
+![Histogram Avg Bucket Value](Images/Avg_Val_Hist.png)

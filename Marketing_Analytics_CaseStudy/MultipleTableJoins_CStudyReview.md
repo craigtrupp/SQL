@@ -394,7 +394,7 @@ ORDER BY unique_record_counts;
 |7|116|
 |8|72|
 
-**Findings**: We can confirm that there are indeed multiple unique `inventory_id` per `film_id` value in the `dvd_rentals.inventory` table.
+**Findings**: We can confirm that there are indeed multiple unique `inventory_id` per `film_id` value in the `dvd_rentals.inventory` table. For example 133 films have 2 inventory ids or unique record counts.
 
 <br>
 
@@ -408,3 +408,419 @@ Do you remember the 2 questions that we need to answer when we are joining table
 One of the first places to start inspecting our datasets is to look at the distribution of foreign key values in each `rental` and `inventory` table used for our join.
 
 The distribution and relationship within the table by the foreign keys is super important because it helps us inspect what our table joining inputs consist of and also determines what sort of outputs we should expect after joining.
+
+<br>
+
+
+* `rental` distribution analysis on `inventory_id` foreign key
+    * This is the same query looking at how many times the foreign key inventory_id is within rentals
+    * This drills down and groups the counts of inventory_ids and their respective rentals or counts_of_foreign_keys
+```sql
+-- first generate group by counts on the foreign_key_values column
+WITH counts_base AS (
+SELECT
+  inventory_id AS foreign_key_values,
+  COUNT(*) AS row_counts
+FROM dvd_rentals.rental
+GROUP BY foreign_key_values
+)
+-- summarize the group by counts above by grouping again on the row_counts from counts_base CTE part
+SELECT
+  row_counts,
+  COUNT(foreign_key_values) as count_of_foreign_keys
+FROM counts_base
+GROUP BY row_counts
+ORDER BY row_counts;
+```
+|row_counts|count_of_foreign_keys|
+|----|-----|
+|1|4|
+|2|1126|
+|3|1151|
+|4|1160|
+|5|1139|
+
+<br>
+
+* `inventory` distribution analysis on `inventory_id` foreign key
+    * This is showing how many times an inventory_id may be repeated
+    * This essentially says that for every single unique inventory_id value in the inventory table - there exists only 1 table row record - this is the exact definition of a 1-to-1 relationship (also used in the previous tutorials!) (See output)
+```sql
+WITH counts_base AS (
+SELECT
+  inventory_id AS foreign_key_values,
+  COUNT(*) AS row_counts
+FROM dvd_rentals.inventory
+GROUP BY foreign_key_values
+)
+SELECT
+  row_counts,
+  COUNT(foreign_key_values) as count_of_foreign_keys
+FROM counts_base
+GROUP BY row_counts
+ORDER BY row_counts;
+```
+|row_counts|count_of_foreign_keys|
+|----|-----|
+|1|4581|
+
+<br>
+
+**Findings**
+
+We can see in the `rental table` - there exists different multiple row counts for some values of the foreign keys - this is not unexpected, in fact we did exactly the same analysis previously to validate our first data hypothesis!
+* again the foreign key here just means the `inventory_id` 
+
+To break it down - we can see that 4 of our foreign key values (the inventory_id in this case) will have only a single row in the rental_table.
+
+Additionally in the rental table - there are 1,126 inventory_id values which exist in 2 different rows and 1,151 in 3 different rows and so on.
+
+This can also be referred to as a a 1-to-many relationship for the inventory_id in this rental table, or in other words - there may exist 1 or more record for each unique inventory_id value in this table.
+* Inventory just being rented more than once!
+
+<br>
+
+**First Question** : How many records exist per inventory_id value in rental or inventory tables?
+
+Lastly, We can indeed confirm this is the case when we simply perform the simple group by count on inventory_id with a descending order by to confirm that the largest row count is 1.
+
+```sql
+SELECT
+  inventory_id,
+  COUNT(*) as record_count
+FROM dvd_rentals.inventory
+GROUP BY inventory_id
+ORDER BY record_count DESC
+LIMIT 5;
+```
+|inventory_id|	record_count|
+|-------|-----|
+|1489|	1|
+|273|	1|
+|3936|	1|
+|2574|	1|
+|951|	1|
+
+* Above is a quick query to see how many times an inventory_id may be seen in the table and the DESC call shows there isn't an inventory with more than 1 record_count in our inventory. A 1 to 1! 
+
+<br>
+
+You may remember that I used this term frequently when we covered the marketing analytics case study data overview a few tutorials back - hopefully this makes things crystal clear now!
+
+<br>
+
+Now onto the **second question**: How many overlapping and missing unique foreign key values are there between the two tables?
+
+* After we look at the distribution of foreign key values and identify the relationship between the foreign key and the rows of each left and right table, we also need to identify the unique values for the foreign key that exist in each left and right table to answer question 2:
+
+![Overlap Analysis](Images/fkovrlp_jmt.png)
+Let’s first try to find the foreign keys which only exist in our left table or the dvd_rentals.rental table in our case.
+
+So just a refresher we should revisit - just why do we think of this as our left table and not the dvd_rentals.inventory table?
+
+Since the dvd_rentals.rental table is the only table in our ERD which has customer_id as a column - we would like to keep all of the records from this table. This is usually referred to as the “base” table which is commonly used as the left side of a join operation as a typical LEFT join keeps all of the data from the base table!
+
+I know it sounds confusing with terms like left and right tables and left join etc - but just bear with me! These are very common terms we use all the time at work and being exposed to it early is invaluable!
+
+<br>
+
+#### Left & Right Only Foreign Keys
+We will employ the `anti join` or a `WHERE NOT EXISTS` to obtain the following foreign key details:
+
+1. Which foreign keys only exist in the left table?
+2. Which foreign keys only exist in the right table?
+
+Firstly - let’s count how many unique keys are in both (1) and (2):
+```sql
+-- how many foreign keys only exist in the left table and not in the right?
+-- how many unique inventory values (or foreign keys) live in the rental table and not inventory
+SELECT
+  COUNT(DISTINCT rental.inventory_id)
+FROM dvd_rentals.rental
+WHERE NOT EXISTS (
+  SELECT inventory_id
+  FROM dvd_rentals.inventory
+  WHERE rental.inventory_id = inventory.inventory_id
+);
+```
+|count|
+|---|
+|0|
+
+* Great we can confirm that there are no `inventory_id` records which appear in the `dvd_rentals.rental` table which does not appear in the `dvd_rentals.inventory` table. It would be odd if we were renting something that wasn't a known quantity! 
+
+<br>
+
+Now onto the right side table:
+```sql
+-- how many foreign keys only exist in the right table and not in the left?
+-- note the table reference changes
+-- any inventory distinctly in inventory and not in rentals?
+SELECT
+  COUNT(DISTINCT inventory.inventory_id)
+FROM dvd_rentals.inventory
+WHERE NOT EXISTS (
+  SELECT inventory_id
+  FROM dvd_rentals.rental
+  WHERE rental.inventory_id = inventory.inventory_id
+);
+```
+|count|
+|---|
+|1|
+
+* This single record might seem off at first - but let’s revisit what the inventory data actually represents.
+    * It is linked to a specific film record which could be rented out by a customer. One such reason for this odd record could be that this specific rental inventory unit was never rented out by a customer. In a real world problem - we would try to validate this hunch by talking with other business stakeholders or team members to confirm this is the case
+
+<br>
+
+Let’s now focus on the intersection of the foreign keys for the left and right tables.
+![Semi Join](Images/frkeys_joint_jmt.png)
+* To save the computation from including columns or a regular `INNER JOIN` we can use a `LEFT SEMI JOIN`
+* We can quickly perform a left semi join or a `WHERE EXISTS` to get the count of unique foreign key values that are in the **intersection**.
+```sql
+SELECT
+  COUNT(DISTINCT rental.inventory_id)
+FROM dvd_rentals.rental
+WHERE EXISTS (
+  SELECT inventory_id
+  FROM dvd_rentals.inventory
+  WHERE rental.inventory_id = inventory.inventory_id
+);
+```
+|count|
+|---|
+|4580|
+
+* Interpreting this count is that 4580 dvd have been rented. So our inventory is being rent except for the one solitary inventory_id that was not in rentals
+
+
+<br>
+
+### Implementing the Join(s)
+After performing this analysis we can conclude there is in fact no difference between running a `LEFT JOIN` or an `INNER JOIN` in our example!
+
+We can finally implement our joins and prove this is the case by inspecting the raw row counts from the resulting join outputs.
+
+Let’s also confirm that the unique inventory_id records are the same too.
+
+```sql
+-- We are pulling all rental data and matching with the inventory id we evaluated above for any independence (only one inventory id not present in rental that was in inventory)
+DROP TABLE IF EXISTS left_rental_join;
+CREATE TEMP TABLE left_rental_join AS
+SELECT
+  rental.customer_id,
+  rental.inventory_id,
+  inventory.film_id
+FROM dvd_rentals.rental
+LEFT JOIN dvd_rentals.inventory
+  ON rental.inventory_id = inventory.inventory_id;
+
+-- Similarly an Inner Join could be performed here as well in which the various inventory_id matches in rental would return multiple times for the same output as all the rentals captured above
+DROP TABLE IF EXISTS inner_rental_join;
+CREATE TEMP TABLE inner_rental_join AS
+SELECT
+  rental.customer_id,
+  rental.inventory_id,
+  inventory.film_id
+FROM dvd_rentals.rental
+INNER JOIN dvd_rentals.inventory
+  ON rental.inventory_id = inventory.inventory_id;
+
+-- check the counts for each output (bonus UNION usage)
+-- note that these parantheses are not really required but it makes
+-- the code look and read a bit nicer!
+(
+  SELECT
+    'left join' AS join_type,
+    COUNT(*) AS record_count,
+    COUNT(DISTINCT inventory_id) AS unique_key_values
+  FROM left_rental_join
+)
+UNION
+(
+  SELECT
+    'inner join' AS join_type,
+    COUNT(*) AS record_count,
+    COUNT(DISTINCT inventory_id) AS unique_key_values
+  FROM inner_rental_join
+);
+```
+|join_type|record_count|unique_key_values|
+|----|------|---------|
+|inner join|16044|4580|
+|left join|16044|4580|
+
+* As expected our counts (row returns) for either or a `LEFT` OR `INNER` join here gives us the full details bout the rental data and its' foreign key `inventory_id`
+
+<br>
+
+### Joining Part 1 & 2
+```sql
+DROP TABLE IF EXISTS join_parts_1_and_2;
+CREATE TEMP TABLE join_parts_1_and_2 AS
+SELECT
+  rental.customer_id,
+  inventory.film_id,
+  film.title
+FROM dvd_rentals.rental
+INNER JOIN dvd_rentals.inventory
+  ON rental.inventory_id = inventory.inventory_id
+INNER JOIN dvd_rentals.film
+  ON inventory.film_id = film.film_id;
+
+SELECT * FROM join_parts_1_and_2 limit 10;
+```
+|customer_id|film_id|title|
+|-----|------|------|
+|130|80|BLANKET BEVERLY|
+|459|333|FREAKY POCUS|
+|408|373|GRADUATE LORD|
+|333|535|LOVE SUICIDES|
+|222|450|IDOLS SNATCHERS|
+|549|613|MYSTIC TRUMAN|
+|269|870|SWARM GOLD|
+|239|510|LAWLESS VISION|
+|126|565|MATRIX SNOWMAN|
+|399|396|HANGING DEEP|
+
+### Joining Part 3 & 4
+```sql
+DROP TABLE IF EXISTS complete_joint_dataset;
+CREATE TEMP TABLE complete_joint_dataset AS
+SELECT
+  rental.customer_id,
+  inventory.film_id,
+  film.title,
+  film_category.category_id,
+  category.name AS category_name
+FROM dvd_rentals.rental
+INNER JOIN dvd_rentals.inventory
+  ON rental.inventory_id = inventory.inventory_id
+INNER JOIN dvd_rentals.film
+  ON inventory.film_id = film.film_id
+INNER JOIN dvd_rentals.film_category
+  ON film.film_id = film_category.film_id
+INNER JOIN dvd_rentals.category
+  ON film_category.category_id = category.category_id;
+
+SELECT * FROM complete_joint_dataset limit 10;
+```
+|customer_id|	film_id|	title|	category_id|	category|
+|------|-------|------|------|-------|
+|130|	80|	BLANKET BEVERLY|	8|	Family|
+|459	|333	|FREAKY POCUS|	12	|Music|
+|408	|373	|GRADUATE LORD|	3|	Children|
+|333	|535	|LOVE SUICIDES|	11	|Horror|
+|222	|450	|IDOLS SNATCHERS|	3	|Children|
+|549	|613	|MYSTIC TRUMAN|	5	|Comedy|
+|269	|870	|SWARM GOLD|	11	|Horror|
+|239	|510	|LAWLESS VISION|	2	|Animation|
+|126	|565	|MATRIX SNOWMAN|	9	|Foreign|
+|399	|396	|HANGING DEEP	|7	|Drama|
+
+<br>
+
+#### Compare to Inner Join?
+```sql
+DROP TABLE IF EXISTS complete_left_join_dataset;
+CREATE TEMP TABLE complete_left_join_dataset AS
+SELECT
+  rental.customer_id,
+  inventory.film_id,
+  film.title,
+  category.name AS category_name
+FROM dvd_rentals.rental
+LEFT JOIN dvd_rentals.inventory
+  ON rental.inventory_id = inventory.inventory_id
+LEFT JOIN dvd_rentals.film
+  ON inventory.film_id = film.film_id
+LEFT JOIN dvd_rentals.film_category
+  ON film.film_id = film_category.film_id
+LEFT JOIN dvd_rentals.category
+  ON film_category.category_id = category.category_id;
+
+SELECT
+  'left join' AS join_type,
+  COUNT(*) AS final_record_count
+FROM complete_left_join_dataset
+UNION
+SELECT
+  'inner join' AS join_type,
+  COUNT(*) AS final_record_count
+FROM complete_joint_dataset;
+```
+|join_type|	final_record_count|
+|-------|--------|
+|inner join|	16044|
+|left join|	16044|
+
+<br>
+
+As we can see - in our example - there is no difference! But why???
+
+We can see from the order of the tables that we joined and their respective relationships with the foreign keys of the downstream tables.
+
+* First we took the `dvd_rentals.rental` table and performed a join onto the `dvd_rentals.inventory` dataset.
+
+* We know that all of the foreign keys from the base table `dvd_rentals.rental` also exist in the right join table `dvd_rentals.inventory`.
+
+This means that we should expect all of the rows from the dvd_rentals.rental table to remain as is - just with the additional film_id column being populated by the dvd_rentals.inventory table.
+
+* Next when we inspect the following left join onto the `dvd_rentals.film` table - we can see that this table is joined onto the `dvd_rentals.inventory` table - since we also know that all of the `inventory_id` values from the `dvd_rentals.inventory` exist in the `dvd_rentals.film` table - we can also expect all of the records to remain as is with only the additional title field being added to the resulting dataset.
+
+* Finally we do the same for the `category_id` and `name` columns from the `dvd_rentals.film_category` and `dvd_rentals.category` tables respectively.
+
+<br>
+
+This might seem like a redundant fact - but it is really important to understand this additive approach to multiple table joins for SQL.
+
+<br>
+
+### Summary
+![Key Join Summary](Images/EntireProcess_jmt.png)
+
+<br>
+
+---
+
+<br>
+
+## Conclusion
+Ok - so this multiple table joining tutorial is very long, so let’s end things here!
+
+To summarise what we covered in this session:
+
+1. More reverse engineering to identify the key columns we needed in our SQL output for our customer insight and recommendation calculations
+2. Mapped out our table journey by linking the tables with our key columns via the foreign keys in the ERD
+3. Introduced a framework for analyzing table joining operations
+4. Implemented table joins between two tables, comparing expected outputs for LEFT JOIN vs INNER JOIN operations
+5. Joined multiple tables in a single query
+
+The framework for analyzing table joins:
+
+1. What is the purpose of joining these two tables?
+    * What contextual hypotheses do we have about the data?
+    * How can we validate these assumptions?
+2. What is the distribution of foreign keys within each table?
+3. How many unique foreign key values exist in each table?
+
+Performing multiple table joins is very very common and hopefully this framework and approach will help you when you need to extract data from multiple tables!
+
+<br>
+
+---
+
+<br>
+
+## Appendix
+A few additional thoughts and points about multiple table joins and EFFICIENCY.
+
+Often when we are dealing with table joins - it is SUPER important to ensure that you are joining on index or primary key columns wherever possible.
+
+The SQL optimizer works best with indexed columns and is the most efficiently during the matching phase of the joins (that ON condition) - outside of smaller tables where a sequential scan is just as fast if not faster than keeping a separate index locked in!
+
+Some tips when working with this stuff in reality (especially with HUGE tables) is to create `TEMP tables` with only the required columns from a table, applying `WHERE` filters where relevant and also making sure to create a `PRIMARY KEY` or `INDEX` on the columns which you will be joining on in downstream sections of your script.
+
+In PostgreSQL - you need to also run an `ANALYZE TABLE`  step before using the temporary table in future joins otherwise the table statistics and indexes will not be collected for use by the optimizer!
+

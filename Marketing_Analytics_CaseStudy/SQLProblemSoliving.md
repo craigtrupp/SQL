@@ -1,0 +1,196 @@
+# SQL Data Problem Solving
+
+* Now that we’ve combined all of our different datasets together into a single base table which we can use for our insights - let’s revise our email template and that base table that we now use for many of our downstream components.
+* This base table was a temporary table that performed the below type joins to link each table of interest with the data point of interest 
+
+<br>
+
+
+## Email Template
+![Email Template 1_2](Images/Template1_2.png)
+![Email Template 2_2](Images/Template2_2.png)
+
+---
+
+<br>
+
+
+## SQL Base Table
+* Recall the Left Style Join or Inner Join Produced the Same Table Results
+
+```sql
+DROP TABLE IF EXISTS complete_joint_dataset;
+CREATE TEMP TABLE complete_joint_dataset AS
+SELECT
+  rental.customer_id,
+  inventory.film_id,
+  film.title,
+  rental.rental_date,
+  category.name AS category_name
+FROM dvd_rentals.rental
+INNER JOIN dvd_rentals.inventory
+  ON rental.inventory_id = inventory.inventory_id
+INNER JOIN dvd_rentals.film
+  ON inventory.film_id = film.film_id
+INNER JOIN dvd_rentals.film_category
+  ON film.film_id = film_category.film_id
+INNER JOIN dvd_rentals.category
+  ON film_category.category_id = category.category_id;
+
+SELECT * FROM complete_joint_dataset limit 10;
+```
+|customer_id|film_id|title|rental_date|category_name|
+|-----|-----|-----|-----|------|
+|130|80|BLANKET BEVERLY|2005-05-24 22:53:30.000|Family|
+|459|333|FREAKY POCUS|2005-05-24 22:54:33.000|Music|
+|408|373|GRADUATE LORD|2005-05-24 23:03:39.000|Children|
+|333|535|LOVE SUICIDES|2005-05-24 23:04:41.000|Horror|
+|222|450|IDOLS SNATCHERS|2005-05-24 23:05:21.000|Children|
+|549|613|MYSTIC TRUMAN|2005-05-24 23:08:07.000|Comedy|
+|269|870|SWARM GOLD|2005-05-24 23:11:53.000|Horror|
+|239|510|LAWLESS VISION|2005-05-24 23:31:46.000|Animation|
+|126|565|MATRIX SNOWMAN|2005-05-25 00:00:40.000|Foreign|
+|399|396|HANGING DEEP|2005-05-25 00:02:21.000|Drama|
+
+---
+
+<br>
+
+## Data Next Steps
+We will use this base table as our starting point as we work towards the customer level insights and the film recommendations.
+
+In this tutorial we will aim to cover those core calculated fields which we broke down in our first reverse engineering section of this case study.
+
+Let’s also revisit some of these calculations we need to perform again to jog our memory:
+
+<br>
+
+## Core Calculated Fields
+* **category_name**: The name of the top 2 ranking categories
+* **rental_count**: How many total films have they watched in this category
+* **average_comparison**: How many more films has the customer watched compared to the average DVD Rental Co customer
+* **percentile**: How does the customer rank in terms of the top X% compared to all other customers in this film category?
+* **category_percentage**: What proportion of total films watched does this category make up?
+
+We will need these calculated fields to help us arrive at the various interim table outputs to reach our final required outputs for this case study.
+
+![Calculated Fields](Images/CalculatedFields.png)
+
+* We mentioned earlier in the Multiple Table Joining tutorial that we would need to keep all of the rental category counts for each customer - just like it’s shown in the sample output above - however we might run into issues if we only keep those top 2 ranking categories as we perform some of these calculations.
+
+* When we look at these core calculated metrics - the final 3 metrics average_comparison, percentile and category_percentage are actually dependent on all of the category counts and not just the top 2 ranked categories.
+
+We will definitely need those top 2 category_name and rental_count values for every customer - but how can we compute those 3 calculations if we only want to keep those top 2 values?
+
+---
+
+<br>
+
+### Sample Illustrated Example
+Let’s paint an imaginary scenario where we only have 3 customers in our entire database - we can do this using our existing data example and taking only customer_id values of 1, 2 and 3.
+
+We can generate each customers’ aggregated rental_count values for every category_name value from our complete_joint_dataset temporary table also.
+
+* Let’s also sort the output by `customer_id` and show the `rental_count` from largest to smallest for each customer: 
+
+```sql
+-- Let’s also sort the output by customer_id and show the rental_count from largest to smallest for each customer (1,2,3)
+SELECT
+  customer_id,
+  category_name,
+  COUNT(*) AS category_film_rent_count
+  FROM complete_joint_dataset
+  WHERE customer_id in (1, 2, 3)
+  GROUP BY customer_id, category_name
+  ORDER BY customer_id ASC, category_film_rent_count DESC;
+```
+![Customer 1](Images/Customer_1.png)
+
+![Customer 2](Images/Customer_2.png)
+
+![Customer 3](Images/Customer_3.png)
+
+---
+
+<br>
+
+### Top 2 Category Per Customer
+Let’s now imagine that we just go full speed ahead and trim our dataset keeping only the top 2 categories for each customer - we would get the following results below.
+
+Let’s just say we visually inspected our customer records because we will need to cover some window function magic before we can implement this ranking and filtering:
+
+![Top 2 Per Customer](Images/Top_2_PerCustomer.png)
+
+* `Customer 3` is an edge case where it just so happens that both Sci-Fi and Animation categories have a `rental_count` value of 3 - let’s dive into this a bit more.
+
+<br>
+
+### Dealing With Ties
+We refer to this matching occurence as `“ties”` in regular conversation, usually you’ll hear things said in meetings and such like - “How are we going to deal with ties?”
+
+There are multiple ways you can deal with these `“equal”` ranking row ties:
+* Sort the values further by an additional condition or criteria
+* Randomly select a single row
+
+<br>
+
+####  Do Not Select Randomly
+* In most cases - you do not want to randomly select single rows as this is not `reproducible` 
+    * meaning that often the behaviour will change each time you run the SQL query.
+
+* This is a really important concept when it comes to `data science` in practice as we will often need to prove that we can **repeatedly** generate the same data points, even if some script or process is ran at different times.
+
+So that leaves us with only option 1 - we will need to figure out what we should be sorting by as an additional criterion for our example.
+
+<br>
+
+#### Additional Sorting Criteria
+Often times when we think about these additional sorting or ranking conditions - we should aim to choose something which 
+makes the most sense in terms of a business or customer perspective or something which is low cost and simple to execute.
+
+For example - a super simple method to execute might be to just sort the `category_name` fields alphabetically - it might not be the “best” solution for our customer experience, but it might just work when we need to do something really quickly without needing to acquire additional data!
+
+<br>
+
+#### Customer 3 categories sorted by rental count descending and alphabetical order
+|customer_id|category_name|rental_count|
+|-----|------|-------|
+|3	|Action|	4|
+|3	|Animation|	3|
+|3	|Sci-Fi|	3|
+
+<br>
+
+However, for our email example (and in general) we should consider how a customer might respond as a result of certain decisions like this.
+
+* One really common sorting method is to look at the most recent purchase or rental and sort by some recency metric based on when the last purchase was made.
+
+* We could propose that we investigate when the latest rental was completed for each category - if we had this `rental_date` value for each individual rental record, we could easily find the `MAX(rental_date)` value for each `customer_id` and `category_name` combination.
+
+* If we wanted to do this `rental_date` tracking - we must acquire this data point in our base temporary table for use in our queries.
+
+However, luckily for us - it is not difficult to incorporate this additional rental_date field for our new calculations. You can check the query in the section below if you want to see how to do it:
+
+The query below adds an additional filter for only `customer_id = 3` instead of customer_id IN (1,2,3) as our 3rd customer is the one with the ranking issue!
+
+```sql
+-- Finally perform group by aggregations on category_name and customer_id
+SELECT
+  customer_id,
+  category_name,
+  COUNT(*) AS rental_count,
+  MAX(rental_date) AS latest_rental_date
+FROM complete_joint_dataset
+-- note the different filter here!
+WHERE customer_id = 3
+GROUP BY
+  customer_id,
+  category_name
+ORDER BY
+  customer_id,
+  rental_count DESC,
+  latest_rental_date DESC;
+```
+![Rental Date - Customer 3](Images/customer_3_rd.png)
+
+* Great - now we can see that Customer 3 most recent rental was from the Sci-Fi category - so we can use this additional criteria to sort the output and select the 2nd ranking category!

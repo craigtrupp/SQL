@@ -391,3 +391,208 @@ Let’s now try this whole process using the entire dataset instead of just `cus
 <br>
 
 ## Data Aggregation on Whole Dataset
+Just like we did before with our simple illustrated example - we will need to aggregate the `rental_count` values for each of our customers and categoy values, however this time - we will do our aggregations on the whole `complete_joint_dataset` temporary table we created earlier.
+
+For the following few sections - we will split up each part of our various aggregations and calculations into separate temporary tables. See if you can figure out exactly why I’m doing this by the time we reach the end of this tutorial!
+
+I’m not going to let you in on the exact reason now - but I will say that this breaking up into multiple tables will help us a lot when we need to finally compile an entire SQL script to generate our case study solution!
+
+<br>
+
+### 1) Customer Rental Count
+Let’s first aggregate that `rental_count` value first - however let’s also use the version of the `joint dataset` that also had the `rental_date `for each record too so we can generate an additional `latest_rental_date` field for use with our sorting and ordering step, just like in our simple illustrated example.
+
+```sql
+DROP TABLE IF EXISTS category_rental_counts;
+CREATE TEMP TABLE category_rental_counts AS
+SELECT
+  customer_id,
+  category_name,
+  COUNT(*) AS rental_count,
+  MAX(rental_date) AS latest_rental_date
+FROM complete_joint_dataset
+GROUP BY
+  customer_id,
+  category_name;
+
+-- profile just customer_id = 1 values sorted by desc rental_count
+SELECT *
+FROM category_rental_counts
+WHERE customer_id = 1
+ORDER BY
+  rental_count DESC;
+```
+* Using Joined Temp Table  for all Customer Data
+
+![Customer Rental Counts](Images/3_1_CustRentalCount.png)
+
+<br>
+
+### 2) Total Customer Rentals
+In order to generate the `category_percentage` calculation we will need to get the total rentals per customer. This is a piece of cake using a simple `GROUP BY` and `SUM`
+
+    category_percentage: What proportion of each customer’s total films watched does this count make?
+
+```sql
+DROP TABLE IF EXISTS customer_total_rentals;
+CREATE TEMP TABLE customer_total_rentals AS
+SELECT
+  customer_id,
+  SUM(rental_count) AS total_rental_count
+FROM category_rental_counts
+GROUP BY customer_id;
+
+-- show output for first 5 customer_id values
+SELECT *
+FROM customer_total_rentals
+WHERE customer_id <= 5
+ORDER BY customer_id;
+```
+* Using the created temp table `category_rental_counts` created in the first step, a temporary `total_rental` counts per customer can be performed by aggregating the sum of the rental counts after grouping by each `customer_id`
+
+![Total Cust Rentals](Images/3_2_CustTotals.png)
+
+<br>
+
+### 3) Average Category Rental Counts 
+* Finally we can also use the AVG function with all of our category records for all customers to calculate the true average rental count for each category.
+
+```sql
+DROP TABLE IF EXISTS average_category_rental_counts;
+CREATE TEMP TABLE average_category_rental_counts AS
+SELECT
+  category_name,
+  AVG(rental_count) AS avg_rental_count
+FROM category_rental_counts
+GROUP BY
+  category_name;
+
+-- output the entire table by desc avg_rental_count
+SELECT *
+FROM average_category_rental_counts
+ORDER BY
+  avg_rental_count DESC;
+```
+![Avg Cat Rentals](Images/3_3_CatAvgRent.png)
+
+* For my sanity I did a spot check here to confirm the Averages (Spot Check `Animation`)
+
+```sql
+SELECT 
+  SUM(rental_count) AS total_rentals,
+  (SELECT SUM(rental_count) AS anime_sum FROM category_rental_counts WHERE category_name = 'Animation'),
+  (SELECT COUNT(*) AS total_animation_cat_rows FROM category_rental_counts WHERE category_name = 'Animation'),
+  (SELECT SUM(rental_count) AS anime_sum FROM category_rental_counts WHERE category_name = 'Animation') / (SELECT COUNT(*) AS total_animation_cat_rows FROM category_rental_counts WHERE category_name = 'Animation') AS anime_avg
+  FROM category_rental_counts;
+```
+![Avg Anime](Images/Avg_Anime_Check.png)
+
+|total_rentals|anime_sum|total_animation_cat_rows|anime_avg|
+|-----|-------|-------|------|
+|16044|1166|500|2.3320000000000000|
+
+* They match!
+* Using a subquery and the `category_rental_counts` temp table, the average generated for each category is generated through the sum of each categorical count against the total rows for each category
+    * Each found row for the categorical search (Animation example above) would have varying numbers for the grouped by total for that category per customer
+
+<br>
+
+### 4) Update Table Values
+Since it might seem a bit weird to be telling customers that they watched 1.346 more films than the average customer - let’s make an executive decision and just take the `FLOOR` value of the decimal to give our customers a bit of a feel-good boost that they watch more films (as opposed to if we rounded the number to the nearest integer!)
+
+We can do this directly with that temp table we created by running an `UPDATE` command.
+
+If you need to update multiple columns at one time, you can use a comma to separate each set of column and new value pairs.
+
+We can also set a `WHERE` clause to only update specific rows that meet some condition we want.
+
+Additionally - we can return the rows which were adjusted by specifying a `RETURNING * at the end of the query.
+
+Just to demonstrate all of this functionality - let’s create an exact copy of our `average_category_rental_counts` temporary table and call it `testing_average_category_rental_counts` and we will try to update a few things for films that start with the letter 'C'
+
+Let’s try adding 100 to our average rental count value and also adding an extra string ‘Category’ to the end of our `category_name` field:
+
+```sql
+-- first create a copy of average_category_rental_counts
+DROP TABLE IF EXISTS testing_average_category_rental_counts;
+CREATE TEMP TABLE testing_average_category_rental_counts AS
+  TABLE average_category_rental_counts;
+
+-- now update all the things!
+UPDATE testing_average_category_rental_counts
+SET
+  avg_rental_count = avg_rental_count + 10,
+  category_name = category_name || ' Category'
+WHERE
+  -- first character of category_name is 'C'
+  LEFT(category_name, 1) = 'C'
+-- show all updated rows as the query output
+RETURNING *;
+```
+
+The above query returns the following output:
+
+|category_name|	avg_rental_count|
+|------|-------|
+|Classics Category|	12.0064102564102564|
+|Comedy Category|	11.9010101010101010|
+|Children Category|	11.9605809128630705|
+
+And we can finally check that the underlying values in the `testing_average_category_rental_counts` table has indeed changed:
+
+```sql
+SELECT *
+FROM testing_average_category_rental_counts
+ORDER BY category_name;
+```
+![Cat Update](Images/cat_update.png)
+
+* Ok - now that we’ve tested out all the different bits for the `UPDATE` statement - let’s now update our table for real. We will still use the `RETURNING *` to show what has changed in the process:
+
+```sql
+UPDATE average_category_rental_counts
+SET avg_rental_count = FLOOR(avg_rental_count)
+RETURNING *;
+```
+![Cat Update 2 of 2](Images/cat_updates_2.png)
+
+<br>
+
+### 5) Percentile Values
+After that quick whirlwind tour of using `UPDATE` let’s continue with our final calculated field we’ll need to tackle - the percentile field:
+
+* `percentile`: How does the customer rank in terms of the top X% compared to all other customers in this film category?
+
+![Perc Values](Images/perc_value_3_5.png)
+
+<br>
+
+### 6) Percent Rank Window Function
+We can use the `PERCENT_RANK` window function to easily generate our percentile calculated field - however it only generates decimal percentages from 0 to 1!
+
+All window functions must have an `OVER` clause - and in the case of `PERCENT_RANK` which is actually an ordered analytical function - it must also have an `ORDER BY` clause at the minimum - but a `PARTITION BY` clause can also be used with this window function - which we will demonstrate how to use for our current problem!
+
+For now - you can think of the `PARTITION BY` as a similar version of `GROUP BY` which helps split our dataset into specific “groups” or “window frames” to perform further calculations. For this `percentile` field - we actually need to partition on the `category_name` values as we will be trying to get all of the percentile metrics within each unique category
+
+The `ORDER BY` clause is very similar to how it’s used when we want to sort SQL outputs in a specific order - however the ordering is not only required for our `PERCENT_RANK` window function - it is critical!
+
+For our example - we will want to order by the `rental_count` in descending order in order to return us the expected top N% result that we need for our case study.
+
+Don’t worry if all these terms seem a bit confusing - we will cover them in much more depth in the very next tutorial.
+
+We can use our aggregated `rental_count` values at a `customer_id` and `category_level` in the `category_rental_counts` temp table we created earlier to generate the required output like so - let’s first inspect the results for customer_id = 1 for all of their records:
+
+```sql
+SELECT
+  customer_id,
+  category_name,
+  rental_count,
+  PERCENT_RANK() OVER (
+    PARTITION BY category_name
+    ORDER BY rental_count DESC
+  ) AS percentile
+FROM category_rental_counts
+ORDER BY customer_id, rental_count DESC
+LIMIT 14;
+```
+![Percent Rank](Images/prcnt_rank.png)

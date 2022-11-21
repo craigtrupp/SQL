@@ -194,3 +194,200 @@ ORDER BY
 ![Rental Date - Customer 3](Images/customer_3_rd.png)
 
 * Great - now we can see that Customer 3 most recent rental was from the Sci-Fi category - so we can use this additional criteria to sort the output and select the 2nd ranking category!
+
+<br>
+
+#### Additional Thoughts on Sorting and Testing
+Keep in mind that this specific criteria we’ve used to sort is all theoretical - we can’t quite understand real customer preferences with the data we currently have!
+
+Usually in these scenarios - we would perform some sort of split testing or other customer experiments to see what works. We might also send out some customer surveys and ask customers about what type of recommendations they would like to receive.
+
+In general - these types of tests are often referred to as A/B tests or “champion vs challenger” tests and are super common in digital marketing, marketing analytics and even through to more complicated experimentation design with machine learning models!
+
+Experimentation is a very broad topic and this simple example of us simply sorting our customer categories is nowhere near enough to cover even a fraction of the challenges and thinking behind this!
+
+<br>
+
+### Calculate Averages on Top 2 Categories
+So now that we have all of our customers top 2 categories - let’s see what happens when we try to calculate the average on only just the top 2 categories dataset:
+
+* Top 2 categories for all 3 customers
+
+|customer_id|	category_name|	rental_count|
+|--------|-------|-------|
+|1	|Classics|	6|
+|1	|Comedy|	5|
+|2	|Sports|	5|
+|2	|Classics|	4|
+|3	|Action|	4|
+|3	|Sci-Fi|	3|
+
+* To demonstrate what happens - let’s manually generate this dataset using our trusted `CTE` and `VALUES` method we’ve seen multiple time before 
+
+```sql
+DROP TABLE IF EXISTS top_2_category_rental_count
+CREATE TEMP TABLE top_2_category_rental_count AS
+WITH input_data (customer_id, category_name, rental_count) AS (
+    VALUES
+    (1, 'Classics', 6),
+    (1, 'Comedy', 5),
+    (2, 'Sports', 5),
+    (2, 'Classics', 4),
+    (3, 'Action', 4),
+    (3, 'Sci-Fi', 3)
+)
+SELECT * FROM input_data;
+
+-- Check Output
+SELECT * FROM top_2_category_rental_count;
+```
+* Produces same table as above
+
+<br>
+
+### CTE Average Rental Counts Customer Snippet
+It should seem pretty clear that we have already experienced some sort of “data loss” - all of the Classics category films that customer 3 has watched are no longer in this existing dataset, and the same can be said about all of the other non top 2 category rental_count values for all of the other categories in the top_2_category_rental_count dataset.
+
+If we were to calculate the average of all customer’s Classics films - there is actually no record for customer 3 and now the average is heavily skewed to only customers who have Classics as one of their top 2 categories - this is a bit of a no no!
+
+So let’s back up a bit here and compare our averages with the original aggregated rental_count values for all of our categories - we’ll use that initial GROUP BY query as a CTE so we can keep everything in a single SQL statement:
+
+```sql
+WITH aggregated_rental_count AS (
+  SELECT
+    customer_id,
+    category_name,
+    COUNT(*) AS rental_count
+  FROM complete_joint_dataset
+  WHERE customer_id in (1, 2, 3)
+  GROUP BY
+    customer_id,
+    category_name
+  /* -- we remove this order by because we don't need it here!
+     ORDER BY
+     customer_id,
+     rental_count DESC
+  */
+)
+SELECT
+  category_name,
+  -- round out large decimals to just 1 decimal point
+  ROUND(AVG(rental_count), 1) AS avg_rental_count
+FROM aggregated_rental_count
+GROUP BY
+  category_name
+-- this will sort our output in alphabetical order
+ORDER BY
+  category_name;
+```
+![Agg Rental Count](Images/Agg_CatRentalCount.png)
+
+<br>
+
+* Now let’s try calculating the same average rental count values for the top_2_category_rental_count dataset so we can compare them with the same values for the entire dataset.
+
+```sql
+SELECT
+  category_name,
+  -- round out large decimals to just 1 decimal point
+  ROUND(AVG(rental_count), 1) AS avg_rental_count
+FROM top_2_category_rental_count
+GROUP BY
+  category_name
+-- this will sort our output in alphabetical order
+ORDER BY
+  category_name;
+```
+
+|category_name|avg_rental_count|
+|------|-------|
+|Action|	4.0|
+|Classics|	5.0|
+|Comedy|	5.0|
+|Sci-Fi|	3.0|
+|Sports|	5.0|
+
+<br>
+
+### Combined CTE For Top 2 Categorical Look
+```sql
+WITH aggregated_rental_count AS (
+  SELECT
+    customer_id,
+    category_name,
+    COUNT(*) AS rental_count
+  FROM complete_joint_dataset
+  WHERE customer_id in (1, 2, 3)
+  GROUP BY
+    customer_id,
+    category_name
+),
+all_categories AS (
+  SELECT
+    category_name,
+    -- round out large decimals to just 1 decimal point
+    ROUND(AVG(rental_count), 1) AS all_category_average
+  FROM aggregated_rental_count
+  GROUP BY
+    category_name
+),
+-- use a new CTE here with raw data entries just for completeness
+top_2_category_rental_count (customer_id, category_name, rental_count) AS (
+ VALUES
+ (1, 'Classics', 6),
+ (1, 'Comedy', 5),
+ (2, 'Sports', 5),
+ (2, 'Classics', 4),
+ (3, 'Action', 4),
+ (3, 'Sci-Fi', 3)
+),
+top_2_categories AS (
+SELECT
+  category_name,
+  -- round out large decimals to just 1 decimal point
+  ROUND(AVG(rental_count), 1) AS top_2_average
+FROM top_2_category_rental_count
+GROUP BY
+  category_name
+-- this will sort our output in alphabetical order
+ORDER BY
+  category_name
+)
+-- final select statement for output
+SELECT
+  top_2_categories.category_name,
+  top_2_categories.top_2_average,
+  all_categories.all_category_average
+FROM top_2_categories
+LEFT JOIN all_categories
+  ON top_2_categories.category_name = all_categories.category_name
+ORDER BY
+  top_2_categories.category_name;
+```
+
+|category_name|top_2_average|all_category_average|
+|-------|--------|-------|
+|Action|4.0|3.0|
+|Classics|5.0|3.7|
+|Comedy|5.0|3.5|
+|Sci-Fi|3.0|2.0|
+|Sports|5.0|3.0|
+
+<br>
+
+### Alterantive / Categorical Review
+So now that we know that there are going to be some serious differences when we look at those average values across each of the categories - we need to figure out an alternative solution instead of just picking the top 2 catgories and naively applying those aggregate functions.
+
+This same issue will definitely impact the percentile value - how can we compare a specific customer’s ranking percentage compared to other customers if we don’t have the rental count for other customers for a specific category?
+
+And finally the `category_percentage` calculation is actually only relative to a single customer’s rental behaviour - but how can we count the total rentals if we only have the top 2 categories?
+
+Luckily there is a simple solution - we can just use the entire dataset for some of these calculations BEFORE we isolate the first 2 categories for our final output.
+
+Let’s now try this whole process using the entire dataset instead of just `customer_id` of 1, 2 and 3!
+
+---
+
+<br>
+
+## Data Aggregation on Whole Dataset

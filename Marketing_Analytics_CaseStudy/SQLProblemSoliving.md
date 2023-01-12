@@ -685,3 +685,462 @@ LIMIT 2;
 |------|--------|-----|
 |1|Classics|1|
 |1|Comedy|1|
+
+<br>
+
+#### Quick Snapshot of the CEIL vs non CEIL type percentiles (1-100)
+```sql
+DROP TABLE IF EXISTS customer_category_percentiles;
+CREATE TEMP TABLE customer_category_percentiles AS
+SELECT
+  customer_id,
+  category_name,
+  -- use ceiling to round up to nearest integer after multiplying by 100
+  CEILING(
+    100 * PERCENT_RANK() OVER (
+      PARTITION BY category_name
+      ORDER BY rental_count DESC
+    )
+  ) AS percentile,
+  100 * PERCENT_RANK() OVER(
+    PARTITION BY category_name
+    ORDER BY rental_count DESC
+  ) AS perentile_non_ceil
+FROM category_rental_counts;
+
+SELECT * FROM customer_category_percentiles WHERE customer_id in (1, 2, 3) ORDER BY category_name ASC;
+```
+![Percent Rank - Ceil & No Ceil](Images/prcnt_rank_100_ceil_noceil.png)
+
+<br>
+
+---
+
+<br>
+
+## Using Our Temporary Tables
+
+Let's take a quick refresh on our temporary tables available
+
+* ### Table 1 - category_rental_counts
+  * Using our initial temp table from the joining path to connect each table, this table will provide a table showing the count of rentals for each category per customer along with their most recent rental date for that particular category in the row returned for each category
+```sql
+DROP TABLE IF EXISTS category_rental_counts;
+CREATE TEMP TABLE category_rental_counts AS
+SELECT
+  customer_id,
+  category_name,
+  COUNT(*) AS rental_count,
+  MAX(rental_date) AS latest_rental_date
+FROM complete_joint_dataset_with_rental_date
+GROUP BY
+  customer_id,
+  category_name;
+```
+
+```sql
+SELECT *
+FROM category_rental_counts
+WHERE customer_id = 1
+ORDER BY rental_count DESC 
+LIMIT 5;
+```
+|customer_id|category_name|rental_count|latest_rental_date|
+|---------|--------|---------|---------|
+|1|Classics|6|2005-08-19 09:55:16.000|
+|1|Comedy|5|2005-08-22 19:41:37.000|
+|1|Drama|4|2005-08-18 03:57:29.000|
+|1|Music|2|2005-07-09 16:38:01.000|
+|1|Sports|2|2005-07-08 07:33:56.000|
+
+<br>
+
+* ### Table 2 - customer_total_rentals
+  * Using category_rental_counts temp table above to get a sum of total rentals from the customers overall category rentals. Not as specific but a good way to see a total sum for each customer
+```sql
+DROP TABLE IF EXISTS customer_total_rentals;
+CREATE TEMP TABLE customer_total_rentals AS
+SELECT
+  customer_id,
+  SUM(rental_count) AS total_rental_count
+FROM category_rental_counts
+GROUP BY customer_id;
+```
+```sql
+SELECT *
+FROM customer_total_rentals
+ORDER BY customer_id 
+LIMIT 5;
+```
+|customer_id|total_rental_count|
+|------|-------|
+|1|32|
+|2|27|
+|3|26|
+|4|22|
+|5|38|
+
+<br>
+
+* ### Table 3 - Average Category Rental Counts
+  * Using the `category_rental_counts` table 1 above, this temp table was updated to provided a `FLOOR` value for the alias avg_rental_counts
+  * Again here the `AVG()` function using the total rows as the `n` for Avg calculation against the sum of rental_counts for each customer to have been found to rent a film in that category (see below for spot check)
+
+```sql
+DROP TABLE IF EXISTS average_category_rental_counts;
+CREATE TEMP TABLE average_category_rental_counts AS
+SELECT
+  category_name,
+  AVG(rental_count) AS avg_rental_count
+FROM category_rental_counts
+GROUP BY
+  category_name;
+
+-- Update Call here to return a single int digit and not a float type value
+UPDATE average_category_rental_counts
+SET avg_rental_count = FLOOR(avg_rental_count)
+RETURNING *;
+
+-- Look at first few rows from temp table
+SELECT *
+FROM average_category_rental_counts
+LIMIT 5;
+```
+|category_name|avg_rental_count|
+|-----|-------|
+|Sports|2|
+|Classics|2|
+|New|2|
+|Family|2|
+|Comedy|1|
+
+* Below is a quick sanity/spot check for how the `FLOOR` and `avg` are being calculated 
+```sql
+-- Let's spot check Classics (sum(rental_counts) for category / by total rows from category_rental_counts for the particular category)
+SELECT category_name, FLOOR(SUM(rental_count)/COUNT(*)) AS avg_rental_count_floor, SUM(rental_count)/COUNT(*) AS avg_rental_count_nonfloor,
+COUNT(*) AS category_total_rows_customers, SUM(rental_count) AS customer_category_total_rentals
+FROM category_rental_counts
+WHERE category_name in ('Sports', 'Classics', 'New', 'Family', 'Comedy')
+GROUP BY category_name;
+```
+|category_name|avg_rental_count_floor|avg_rental_count_nonfloor|category_total_rows_customers|customer_category_total_rentals|
+|-----|-----|------|-----|-----|
+|Sports|2|2.2716763005780347|519|1179|
+|Classics|2|2.0064102564102564|468|939|
+|New|2|2.0085470085470085|468|940|
+|Family|2|2.1876247504990020|501|1096|
+|Comedy|1|1.9010101010101010|495|941|
+
+<br>
+
+* ### Table 4 - Customer Category Percentiles
+  * This table used the `PERCENT_RANK` function along with the `OVER` window frame clause `PARTITIONED` by category to provide the `top` {x} type percentile that customer ranks in category rentals across our dataset
+  * `CEILING` was used in this temp table to round up to the nearest whole percentile (between 1-100) so as to not represent a type string of a 'Customer is in the top 3.763 percentile' for action movies watched or the like
+
+```sql
+DROP TABLE IF EXISTS customer_category_percentiles;
+CREATE TEMP TABLE customer_category_percentiles AS
+SELECT
+  customer_id,
+  category_name,
+  -- use ceiling to round up to nearest integer after multiplying by 100
+  CEILING(
+    100 * PERCENT_RANK() OVER (
+      PARTITION BY category_name
+      ORDER BY rental_count DESC
+    )
+  ) AS percentile,
+  100 * PERCENT_RANK() OVER(
+    PARTITION BY category_name
+    ORDER BY rental_count DESC
+  ) AS perentile_non_ceil
+FROM category_rental_counts;
+```
+
+```sql
+SELECT *
+FROM customer_category_percentiles
+WHERE customer_id = 1
+ORDER BY percentile
+LIMIT 5;
+```
+|customer_id|category_name|percentile|perentile_non_ceil|
+|------|------|------|------|
+|1|Comedy|1|0.6072874493927125|
+|1|Classics|1|0.21413276231263384|
+|1|Drama|3|3|
+|1|Music|21|20.40358744394619|
+|1|New|27|26.76659528907923|
+
+<br>
+
+#### We'll now be Joining Those Temporary Tables to Forge On!
+
+<br>
+
+## Joining Temporary Tables
+This approach to splitting out datasets - performing calculations and aggregations at different granularities by using different `GROUP BY` column inputs or using window functions is a very common technique to split up our various logical components into separate blocks.
+
+This is especially the case for our case study problem as we needed to perform our calculations on the entire dataset before we remove all rows except the top 2 categories for each customer!
+
+We can now easily combine all of the temporary tables together using that same approach we defined in the Joining Multiple Tables tutorial.
+
+Since we would like to keep all of the `rental_count records` - we can safely use table 1 `category_rental_counts` as our starting base table for our table joins.
+
+For this example - let’s use the appearance order style of table aliasing just to mix things up a little bit!
+
+Since we know for sure - all of the keys for the following tables also exist in the `category_rental_counts base` - we can safely use inner joins without the fear of accidentally wiping out values which are not present in left and right tables for each join!
+
+The only thing we need to keep an eye on is the columns which we use as the `join keys` for each of our inner joins - also notice how tables 2, 3 and 4 are joined onto table 1 category_rental_counts
+
+Additionally - we will see that table 4 `customer_category_percentiles` will join onto `category_rental_counts` on 2 columns.
+
+Remember to always reference where specific columns are coming from by referencing the alias or table name in the `SELECT` statement!
+
+```sql
+DROP TABLE IF EXISTS customer_category_joint_table;
+CREATE TEMP TABLE customer_category_joint_table AS
+SELECT
+  t1.customer_id,
+  t1.category_name,
+  t1.rental_count,
+  t2.total_rental_count,
+  t3.avg_rental_count,
+  t4.percentile
+FROM category_rental_counts AS t1
+INNER JOIN customer_total_rentals AS t2
+  ON t1.customer_id = t2.customer_id
+INNER JOIN average_category_rental_counts AS t3
+  ON t1.category_name = t3.category_name
+INNER JOIN customer_category_percentiles AS t4
+  ON t1.customer_id = t4.customer_id
+  AND t1.category_name = t4.category_name;
+
+-- inspect customer_id = 1 rows sorted by percentile
+SELECT *
+FROM customer_category_joint_table
+WHERE customer_id = 1
+ORDER BY percentile;
+```
+![Customer Cat Percents](Images/cust_1_rental_summary_prc.png)
+|customer_id|category_name|rental_count|total_rental_count|avg_rental_count|percentile|
+|-----|------|------|------|-----|-----|
+|1|Classics|6|32|2|1|
+|1|Comedy|5|32|1|1|
+|1|Drama|4|32|2|3|
+
+* A bit hard to see the screenshot so here is 3 rows for customer 1 
+  * Avg_rental count column is again a count of only customers who have rented from that category and if so, how many avg_rentals for that category a customer interested in that genre has 
+  * For instance `Drama` category shows that the customers 4 rentals in the category is 2 greater than a customer generally averages if renting from the category
+  * Since were ordering by the percentile we see the customers top categories percentile rankings for their entire rental history
+
+<br>
+
+* Ok we are getting closer to our target output table - now let’s add in those final calculations to this table.
+
+<br>
+
+### Adding in Calculated Fields
+* `average_comparison`: How many more films has the customer watched compared to the average DVD Rental Co customer?
+
+* `category_percentage`: What proportion of each customer’s total films watched does this count make?
+
+To spice this example up a little further - let’s drop the temporary table we just created `customer_category_joint_table` and recreate it with these 2 calculations included:
+
+```sql
+DROP TABLE IF EXISTS customer_category_joint_table;
+CREATE TEMP TABLE customer_category_joint_table AS
+SELECT
+  t1.customer_id,
+  t1.category_name,
+  t1.rental_count,
+  t1.latest_rental_date,
+  t2.total_rental_count,
+  t3.avg_rental_count,
+  t4.percentile,
+  t1.rental_count - t3.avg_rental_count AS average_comparison,
+  -- round to nearest integer for percentage after multiplying by 100
+  ROUND(100 * t1.rental_count / t2.total_rental_count) AS category_percentage
+FROM category_rental_counts AS t1
+INNER JOIN customer_total_rentals AS t2
+  ON t1.customer_id = t2.customer_id
+INNER JOIN average_category_rental_counts AS t3
+  ON t1.category_name = t3.category_name
+INNER JOIN customer_category_percentiles AS t4
+  ON t1.customer_id = t4.customer_id
+  AND t1.category_name = t4.category_name;
+
+-- inspect customer_id = 1 top 5 rows sorted by percentile
+SELECT *
+FROM customer_category_joint_table
+WHERE customer_id = 1
+ORDER BY percentile
+limit 5;
+```
+|customer_id|category_name|rental_count|latest_rental_date|total_rental_count|avg_rental_count|percentile|average_comparison|category_percentage|
+|-----|-----|------|-------|-----|-----|-------|------|-----|
+|1	|Comedy|	5	|2005-08-22T19:41:37.000Z|	32	|1	|1	|4	|16|
+|1	|Classics|	6	|2005-08-19T09:55:16.000Z|	32	|2	|1	|4	|19|
+|1	|Drama|	4	|2005-08-18T03:57:29.000Z	|32	|2	|3	|2	|13|
+|1	|Music|	2	|2005-07-09T16:38:01.000Z|	32	|1	|21|	1|	6|
+|1	|New	|2	|2005-08-19T13:56:54.000Z	|32	|2	|27|	0	|6|
+
+Note how we have a division field here - normally we would be applying some sort of casting of either the numerator or denominator to a NUMERIC data type to avoid the dreaded integer floor division which we talked about in the Data Exploration section of this course.
+
+However - we are lucky in this example as that total_rental_count value just so happens to be a NUMERIC type already as it is the output from a SUM function.
+
+So I can already imagine you asking - how do we know the data types?
+
+<br>
+
+### Checking Data Types Using the information_schema.columns Table
+To check the data types of columns in specific tables you can use the following query and hit the `information_schema.columns` reference table within PostgreSQL - just note that different SQL flavours will have different ways to inspect the data types of columns and inspect tables further.
+
+This snippet will be really useful anytime you need to inspect data types!
+
+```sql
+SELECT
+  table_name,
+  column_name,
+  data_type
+FROM information_schema.columns
+WHERE table_name in ('customer_total_rentals', 'category_rental_counts');
+```
+|table_name|column_name|data_type|
+|------|--------|-------|
+|category_rental_counts|customer_id|smallint|
+|category_rental_counts|category_name|character varying|
+|category_rental_counts|rental_count|bigint|
+|category_rental_counts|latest_rental_date|timestamp without time zone|
+|customer_total_rentals|customer_id|smallint|
+|customer_total_rentals|total_rental_count|numeric|
+
+
+There are additional columns which are really useful in the information_schema.columns table including:
+
+* `schema_name`: which database schema is this table from?
+* `is_nullable`: can this column contain null values?
+* `ordinal_position`: what position is this column inside the table?
+* `column_default`: is there a default value for this column?
+* `character_maximum_length`: what is the maximum character length of a CHAR or VARCHAR data type column
+In the past I actually used these schema tables to perform a ton of data validation and exploration - for example, I would use this query a ton to find all tables in all schemas that consisted of a specific column that I was looking for:
+
+```sql
+SELECT
+  schema_name,
+  table_name,
+  column_name
+FROM information_schema.columns
+WHERE column_name ILIKE '%<column_name>%
+```
+
+Then I would start inspecting each table one by one to see if it had other columns which I might want:
+
+```sql
+SELECT
+  schema_name,
+  table_name,
+  column_name
+FROM information_schema.columns
+WHERE table_name = 'some-table-from-the-query-above';
+```
+
+There are plenty more things you can do with this such as mapping a few shortcuts to your favourite languages or SQL editors and development tools so this is just scratching the surface of what is possible in the world of SQL exploration!
+
+Ok let’s return to the final piece of the puzzle - how can we extract the top 2 rows for each customer?
+
+---
+
+<br>
+
+## Ordering and Filtering Rows with ROW_NUMBER
+Ok great - we now have all of our various calculations but we also have all of our categories for every customer, however we only need the top 2 categories.
+
+We can use another ordered analytical function `ROW_NUMBER` to do this in another window function!
+
+We’ve seen this briefly in a past tutorial but the `ROW_NUMBER` is used with an `OVER` clause and adds row numbers for records according to some `ORDER BY` condition within each “window frame” or “group” of rows assigned by the `PARTITION BY` clause.
+
+Once the records within each window frame, partition or group are all numbered - the row number simply restarts at 1 for the next group and continues until all of the groups and rows are sorted and numbered.
+
+For our example - we will aim to sort our records within each set of rows with the same `customer_id`, ordering the rows by `rental_count` from largest to smallest and also using that `latest_rental_date` field for each customer’s category as an additional sorting criteria to “deal with ties” (we covered this earlier above!)
+
+We will preference the category with the most recent `latest_rental_date` so we will also need to use a `DESC` with this second input to the `ORDER BY` clause.
+
+We can perform this window function within a `CTE` and then apply a simple filter to only keep row number records which are less than or equal to 2 only.
+
+Let’s create a final temporary table called `top_categories_information` with the output from this operation
+
+```sql
+DROP TABLE IF EXISTS top_categories_information;
+
+-- Note that you need an extra pair of (brackets) when you create tables
+-- with CTEs inside the SQL statement!
+CREATE TEMP TABLE top_categories_information AS (
+-- use a CTE with the ROW_NUMBER() window function implemented
+WITH ordered_customer_category_joint_table AS (
+  SELECT
+    customer_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY customer_id
+      ORDER BY rental_count DESC, latest_rental_date DESC
+    ) AS category_ranking,
+    category_name,
+    rental_count,
+    average_comparison,
+    percentile,
+    category_percentage
+  FROM customer_category_joint_table
+)
+-- filter out top 2 rows from the CTE for final output
+SELECT *
+FROM ordered_customer_category_joint_table
+WHERE category_ranking <= 2
+);
+```
+* Note that the final SELECT statement is needed to filter from the created CTE `ordered_customer_category_joint_table` for just the two top rows (aliased as category_ranking) from the Window Function `ROW_NUMBER`
+* The closing parentheses and final SELECT statement is encapsulated so that future queries to the created `CTE` will only return the top category (2) that was partitioned for the customer with any ties in the `rental_count` column being broken by the category that was rented most recently 
+
+
+```sql
+SELECT *
+FROM top_categories_information
+WHERE customer_id in (1, 2, 3)
+ORDER BY customer_id, category_ranking;
+```
+|customer_id|category_ranking|category_name|rental_count|average_comparison|percentile|category_percentage|
+|------|------|------|------|------|------|-----|
+|1	|1	|Classics|	6|	4|	1|	19|
+|1|	2|	Comedy|	5|	4|	1|	16|
+|2	|1	|Sports	|5	|3	|3	|19|
+|2|	2|	Classics|	4|	2|	2|	15|
+|3	|1	|Action	|4	|2	|5	|15|
+|3|	2|	Sci-Fi|	3|	1|	15|	12|
+
+#### Column Reminders
+* `customer_id`: customer rental id (unique)
+* `category_ranking`: individual category ranking for each partitioned customer ranked by `ROW_NUMBER` that uses the rental_count value for the category to rank with any ties for total category rental_counts subsequently ranked by the most recent rental_date for the category 
+* `category_name`: Genre for films watched
+* `rental_count`: Sum of the rental_count for that category by customer
+* `average_comparison`: how many more films watched for category than average customer who had rented from this category (rental_count for category - avg_rental_count for category) should it exist for the customer
+* `percentile` : `CEILING` value calcualed on the `PERCENT_RANK` return (which was multiplied by 100 to represent a 1-100 percentile rather than 0-1 which the method does). Ceiling taken on returned rank value to have a single int type percentile out of 100 for the listing rather than 0-1
+* `category_percentage`: ROUND(100 * t1.rental_count / t2.total_rental_count) AS category_percentage - this value uses the category_rental_count and divides by the total films rented by the customer to detail what percentage that category represents for a total rental history for the customer
+
+* **Awesome** - this matches not only our illustrated example but it also matches exactly what we need for one of the first output tables for our case study!
+
+---
+
+<br>
+
+## Conclusion
+This now brings us to the conclusion of this tutorial - in the next one we will be diving into a whirlwind tour of window functions to better understand what we did with those percentile and category_ranking fields (and more!)
+
+In this tutorial we covered the following concepts as we continued our SQL problem solving exercise:
+
+* Apply a split, aggregate and join strategy to combine multiple calculated fields into a single table via multiple table joins
+* How to “deal with ties” for row sorting and ordering, and why randomly selecting rows is not a great idea
+* Thinking through customer experience when we make technical decisions that might negatively impact a message or insight
+* Using multiple CTEs in a single SQL statement
+* How to use UPDATE to adjust column values in an existing table, including how to target only specific rows which meet certain criteria
+* Quick overview on the usage of PERCENT_RANK and ROW_NUMBER window functions
+* How to identify column data types and quickly explore database tables to search for columns or table names using information_schema.columns
+

@@ -175,6 +175,7 @@ The query below adds an additional filter for only `customer_id = 3` instead of 
 
 ```sql
 -- Finally perform group by aggregations on category_name and customer_id
+-- ORDER BY serves as tie breaker so an equal rental_count ORDER BY declaration if equal will look next to the latest_rental date which is the MAX rental date for that grouped category for the customer
 SELECT
   customer_id,
   category_name,
@@ -187,7 +188,6 @@ GROUP BY
   customer_id,
   category_name
 ORDER BY
-  customer_id,
   rental_count DESC,
   latest_rental_date DESC;
 ```
@@ -280,6 +280,12 @@ GROUP BY
 ORDER BY
   category_name;
 ```
+* `AVG(rental_count)` here is a bit odd (well to me) in how it calculates. It appears to just be taking the sum of the rental_count for the category and dividing by the total rows found for the category regardless of the total customers and is instead just doing the `SUM(rental_count) / rows returned` for the category from the aggregated_rental_count CTE
+  * If you look at the Comedy `avg_rental_count` return in the below image (along with the other categories) you can see how the avg is being calculated below from the query and its' output below.
+
+![Category Check](Images/avg_agg_1_2_3.png)
+
+#### Here is the total Category Rental Count for each category for the three users
 ![Agg Rental Count](Images/Agg_CatRentalCount.png)
 
 <br>
@@ -596,3 +602,86 @@ ORDER BY customer_id, rental_count DESC
 LIMIT 14;
 ```
 ![Percent Rank](Images/prcnt_rank.png)
+
+Notice how the percentile values are very low for the `Classics` category - the top ranking record for our customer.
+
+Firstly we will need to multiply the `PERCENT_RANK` output by 100 to make it go from a decimal between 0 and 1 to an actual percentage number between 0 and 100.
+
+However - even if we rounded that new percentile metric to the nearest integer for the Classics record - it would still show the value 0 - which might look a bit weird when we generate our customer insight for the email template!
+
+To compile our actual top category insight for `customer_id = 1` for the Classics category - let’s also inspect what the average rental_count value was from our `average_category_rental_counts` table.
+
+```sql
+SELECT *
+FROM average_category_rental_counts
+WHERE category_name = 'Classics';
+```
+|category_name|avg_rental_count|
+|------|--------|
+|Classics|2|
+
+<br>
+
+So based off our top category for our first customer - we might get the following insight if we simply rounded our percentile field:
+
+    You’ve watched 6 Classics films, that’s 4 more than the DVD Rental Co average and puts you in the top 0% of Classics gurus!
+
+Weird right…so instead of rounding - let’s just use the `CEILING` function to take the upper integer for each of those percentile metrics after we multiply by 100 to bring our decimal value between 0 and 1 to a new value between 0 and 100!
+
+```sql
+SELECT
+customer_id,
+category_name,
+rental_count,
+CEILING(
+  100 * PERCENT_RANK() OVER (
+    PARTITION by category_name
+    ORDER BY rental_count DESC
+  ) AS percentile
+)
+FROM category_rental_counts
+ORDER BY customer_id, rental_count DESC
+LIMIT 2;
+```
+|customer_id|category_name|rental_count|percentile|
+|------|--------|-----|----------|
+|1|Classics|6|1|
+|1|Comedy|5|1|
+
+<br>
+
+* Below is an example of what we could tell this particuclar customer regards in terms of their percentile viewing
+
+#### You’ve watched 6 Classics films, that’s 4 more than the DVD Rental Co average and puts you in the top 1% of Classics gurus!
+
+<br>
+
+Let’s pop our transformation into a separate temporary table just like all the other components - we can also remove that rental_count column from the table as we will already have the information from our category_rental_counts table for use in our next step.
+
+```sql
+DROP TABLE IF EXISTS customer_category_percentiles;
+CREATE TEMP TABLE customer_category_percentiles AS
+SELECT
+  customer_id,
+  category_name,
+  -- use ceiling to round up to nearest integer after multiplying by 100
+  CEILING(
+    100 * PERCENT_RANK() OVER (
+      PARTITION BY category_name
+      ORDER BY rental_count DESC
+    )
+  ) AS percentile
+FROM category_rental_counts;
+
+-- inspect top 2 records for customer_id = 1 sorted by ascending percentile
+SELECT *
+FROM customer_category_percentiles
+WHERE customer_id = 1
+-- Remember it's top percentile so not DESC here for percentile sorting
+ORDER BY percentile
+LIMIT 2;
+```
+|customer_id|category_name|percentile|
+|------|--------|-----|
+|1|Classics|1|
+|1|Comedy|1|

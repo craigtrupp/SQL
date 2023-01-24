@@ -694,4 +694,252 @@ Logically - we can think of the `ORDER BY` happening after the `PARTITION BY` cl
 
 ![Rnk Window 2](images/wk_rnkwdf_prt_ord_desc.png)
 
-* A handy way to think of the two calls working for our resulting 
+```sql
+-- we remove any existing customer_sales table first!
+DROP TABLE IF EXISTS customer_sales;
+CREATE TEMP TABLE customer_sales AS
+WITH input_data (customer_id, sales_date, sales) AS (
+ VALUES
+ ('A', '2021-01-01'::DATE, 300),
+ ('A', '2021-01-02'::DATE, 150),
+ ('B', '2021-01-03'::DATE, 100),
+ ('B', '2021-01-02'::DATE, 200)
+)
+SELECT * FROM input_data;
+
+-- RANK Window Function with default ORDER BY
+SELECT
+  customer_id,
+  sales_date,
+  sales,
+  RANK() OVER (
+    PARTITION BY customer_id
+    ORDER BY sales_date
+  ) AS sales_date_rank
+FROM customer_sales;
+
+-- RANK Window Function with descending ORDER BY
+SELECT
+  customer_id,
+  sales_date,
+  sales,
+  RANK() OVER (
+    PARTITION BY customer_id
+    ORDER BY sales_date DESC
+  ) AS sales_date_rank
+FROM customer_sales;
+```
+
+|customer_id|sales_date|sales|sales_date_rank|
+|-------|-------|-------|-------|
+|A|2021-01-02|150|1|
+|A|2021-01-01|300|2|
+|B|2021-01-03|100|1|
+|B|2021-01-02|200|2|
+
+
+* No Partition Example below so no customer grouping (`RANK` assigns ties the same value)
+```sql
+SELECT
+  customer_id,
+  sales_date,
+  sales,
+  RANK() OVER (
+    ORDER BY sales_date DESC
+  ) AS sales_date_rank
+FROM customer_sales;
+```
+
+|customer_id|sales_date|sales|sales_date_rank|
+|-------|-------|-------|-------|
+|B|2021-01-03|100|1|
+|A|2021-01-02|150|2|
+|B|2021-01-02|200|2|
+|A|2021-01-01|300|4|
+
+<br>
+
+### Different Ordering Window Functions
+The most popular ordered window function calculations are the following - note that all of them do not need any inputs:
+
+These functions return integers:
+
+* `ROW_NUMBER()`
+* `RANK()`
+* `DENSE_RANK()`
+
+These following functions return numeric outputs between 0 and 1:
+
+* `PERCENT_RANK()`
+* `CUME_DIST()`
+
+One other function we’ve seen before is the `NTILE` function which we used in the Data Exploration section.
+
+`NTILE` is the odd one out from this set of functions as it requires a single integer input to **define the number of buckets** or end ranges from 1 to the input - for example our example uses `NTILE(100)` to assign a number between 1 and 100 for our dataset based off the distribution of each record.
+
+Let’s revisit a slightly different version of this query so we can dig into our window functions a little bit further and understand their differences:
+
+```sql
+DROP TABLE IF EXISTS ordered_window_metrics;
+CREATE TEMP TABLE ordered_window_metrics AS
+SELECT
+  measure_value,
+  ROW_NUMBER() OVER (ORDER BY measure_value DESC) AS _row_number,
+  RANK() OVER (ORDER BY measure_value DESC) AS _rank,
+  DENSE_RANK() OVER (ORDER BY measure_value DESC) AS _dense_rank,
+  /* ---
+  To succesfully round the following metrics to 5 decimal places
+  we need to explicitly cast the window function output
+  from a double data type to numeric type
+  --- */
+  ROUND(
+    (PERCENT_RANK() OVER (ORDER BY measure_value DESC))::NUMERIC,
+    5
+  ) AS _percent_rank,
+  ROUND(
+    (CUME_DIST() OVER (ORDER BY measure_value DESC))::NUMERIC,
+    5
+  ) AS _cume_dist,
+  NTILE(100) OVER (ORDER BY measure_value DESC) AS _ntile
+FROM health.user_logs
+WHERE measure = 'weight';
+
+-- Select 10 largest rows by measure_value
+SELECT *
+FROM ordered_window_metrics
+ORDER BY measure_value DESC
+LIMIT 10;
+```
+![Window Ordering First](images/wf_dofnct_1_2.png)
+
+```sql
+-- Select 10 smallest rows by measure_value
+SELECT *
+FROM ordered_window_metrics
+ORDER BY measure_value
+LIMIT 10;
+```
+
+![Window Ordering Second](images/wf_dofnct_2_2.png)
+
+<br>
+
+#### Add in Further Complexity with Partition By
+```sql
+DROP TABLE IF EXISTS ordered_window_metrics_desc;
+CREATE TEMP TABLE ordered_window_metrics_desc AS
+SELECT
+  measure,
+  measure_value,
+  ROW_NUMBER() OVER (
+    PARTITION BY measure
+    ORDER BY measure_value DESC
+  ) AS _row_number,
+  RANK() OVER (
+    PARTITION BY measure
+    ORDER BY measure_value DESC
+  ) AS _rank,
+  DENSE_RANK() OVER (
+    PARTITION BY measure
+    ORDER BY measure_value DESC
+  ) AS _dense_rank,
+  /* ---
+  To succesfully round the following metrics to 5 decimal places
+  we need to explicitly cast the window function output
+  from a double data type to numeric type
+  --- */
+  ROUND(
+    (
+      PERCENT_RANK() OVER (
+        PARTITION BY measure
+        ORDER BY measure_value DESC
+      )
+    )::NUMERIC,
+    5
+  ) AS _percent_rank,
+  ROUND(
+    (
+      CUME_DIST() OVER (
+        PARTITION BY measure
+        ORDER BY measure_value DESC
+      )
+    )::NUMERIC,
+    5
+  ) AS _cume_dist,
+  NTILE(100) OVER (
+    PARTITION BY measure
+    ORDER BY measure_value DESC
+  ) AS _ntile
+FROM health.user_logs;
+
+
+SELECT *
+FROM ordered_window_metrics_desc
+WHERE _row_number <= 3
+ORDER BY
+  measure,
+  measure_value DESC;
+```
+![Rank Window Functions 3](images/wfnct_dfnct_prtranks.png)
+
+* Notably the `RANK` will advance n amount of numbers if a tie is seen (see how weight measure doesn't have a **2** in the _rank column)
+* `DENSE RANK` will continue the sequence and not skip ahead regardless of ties seen
+* `ROW NUMBER` is arbitary and just a row is picked should all ORDER BY declarations not produce a breaking of a tie scenario
+
+<br>
+
+Let’s say we also wanted to obtain the smallest 3 values from each measure also? 
+
+#### Combined Ascending & Descending
+```sql
+DROP TABLE IF EXISTS combined_row_numbers;
+CREATE TEMP TABLE combined_row_numbers AS
+SELECT
+  measure,
+  measure_value,
+  ROW_NUMBER() OVER (
+    PARTITION BY measure
+    ORDER BY measure_value
+  ) AS ascending,
+  ROW_NUMBER() OVER (
+    PARTITION BY measure
+    ORDER BY measure_value DESC
+  ) AS descending
+FROM health.user_logs;
+
+SELECT *,
+  CASE
+    WHEN ascending <= 3 THEN 'Bottom 3'
+    WHEN descending <= 3 THEN 'Top 3'
+    END AS value_ranking
+FROM combined_row_numbers
+WHERE
+  ascending <= 3 OR
+  descending <= 3
+ORDER BY
+  measure,
+  measure_value;
+```
+* See above to take the first and last 3 rows from each measure based off the `measure_valu`e records - as a bonus we will also use a `CASE WHEN` statement to generate a `value_ranking` to show which records are the Top 3 or Bottom 3:
+
+![Ascending & Descending](images/wf_cmb_asc_desc.png)
+
+<br>
+
+---
+
+<br>
+
+### Advanced Window Functions
+Now that we have a solid understanding about the ordered window functions and how the execution order impacts our window function calculations - in this following section we will cover the following advanced usage of window functions:
+
+* Lead/lag values
+* Cumulative Aggregations
+* Moving averages and other statistics
+* Exponential weighted averages
+
+But before we dive into these new techniques and build upon our existing knowledge - let’s first introduce our newest dataset here to make this tutorial as memorable as possible!
+
+#### Data Exploration (trading.daily_btc)
+![BTC Data Expo](images/wf_dexpo_btc.png)
+

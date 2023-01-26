@@ -153,3 +153,96 @@ FROM higher_close_open;
 |------|------|-------|----|
 |1283|2353|54.53|54.53%|
 
+
+<br>
+
+6) What was the largest difference between high_price and low_price and which date did it occur?
+
+```sql
+-- TOP 10 POSITIVE high and close differentials BTC w/date
+DROP TABLE IF EXISTS max_min_price_ranges;
+CREATE TEMP TABLE max_min_price_ranges AS 
+SELECT
+  market_date,
+  high_price,
+  low_price,
+  RANK() OVER(
+    ORDER BY high_price - low_price DESC
+  ) AS top_high_low_price_differentials
+FROM trading.daily_btc
+WHERE (high_price IS NOT NULL and low_price IS NOT NULL)
+LIMIT 10;
+
+SELECT 
+  market_date,
+  high_price,
+  low_price,
+  ROUND(high_price - low_price, 2) AS differential,
+  top_high_low_price_differentials
+FROM max_min_price_ranges;
+```
+|market_date|high_price|low_price|differential|top_high_low_price_differentials|
+|----|----|-----|-----|------|
+|2021-02-23|54204.929688|45290.589844|8914.34|1|
+|2021-02-22|57533.390625|48967.566406|8565.82|2|
+|2021-02-08|46203.929688|38076.324219|8127.61|3|
+|2021-01-11|38346.531250|30549.599609|7796.93|4|
+|2021-01-29|38406.261719|32064.814453|6341.45|5|
+|2021-01-10|41420.191406|35984.628906|5435.56|6|
+|2021-01-21|35552.679688|30250.750000|5301.93|7|
+|2021-02-19|56113.652344|50937.277344|5176.38|8|
+|2021-01-08|41946.738281|36838.636719|5108.10|9|
+|2021-01-13|37599.960938|32584.667969|5015.29|10|
+
+<br>
+
+7) If you invested $10,000 on the 1st January 2016 - how much is your investment worth in 1st of February 2021? Use the close_price for this calculation
+
+```sql
+--- Not Working Will Revisit after Finishing Total Section
+DROP TABLE IF EXISTS 10K_best_btc_buy_days
+CREATE TEMP TABLE 10K_best_btc_buy_days AS 
+SELECT 
+  market_date, 
+  close_price,
+  RANK() OVER (
+    PARTITION BY market_date
+    ORDER BY INT(10000)/close_price DESC
+  ) AS top_btc_purchase_amounts_for_10K
+FROM trading.daily_btc
+WHERE market_date BETWEEN '2016-01-01' AND '2021-02-02'
+ORDER BY top_btc_purchase_amounts_for_10K
+LIMIT 10;
+```
+
+```sql
+SELECT
+  ROUND((SELECT 10000/close_price FROM trading.daily_btc WHERE market_date = '2016-01-01'), 2) AS btc_purchased_1_1_16,
+  CAST(10000 AS varchar(100)) AS btc_purchase_amount_1_1_16,
+  ROUND(close_price * (SELECT 10000/close_price FROM trading.daily_btc WHERE market_date = '2016-01-01'), 2) AS btc_value_2021,
+  -- parentheses below for order of operations : https://www.calculatorsoup.com/calculators/algebra/percentage-increase-calculator.php (checked with !)
+  ROUND(((ROUND(close_price * (SELECT 10000/close_price FROM trading.daily_btc WHERE market_date = '2016-01-01'), 2) - 10000) / 10000) * 100, 2) AS percent_gain,
+  -- Cast as String : Percentage Increase Formula : ((Final Value - Starting Value) / Starting Value) * 100
+  CONCAT(CAST(ROUND(((ROUND(close_price * (SELECT 10000/close_price FROM trading.daily_btc WHERE market_date = '2016-01-01'), 2) - 10000) / 10000) * 100, 2) AS varchar(100)), '%') AS percent_change
+FROM trading.daily_btc
+WHERE market_date = '2021-02-01'
+```
+|btc_purchased_1_1_16|btc_purchase_amount_1_1_16|btc_value_2021|percent_gain|percent_change|
+|----|------|------|------|-----|
+|23.02|10000|772151.72|7621.52|7621.52%|
+
+* Just checking some work real fast
+
+```sql
+SELECT market_date, ROUND(close_price,2) AS rounded_close_price FROM trading.daily_btc WHERE market_date in ('2016-01-01', '2021-02-01');
+```
+
+|market_date|rounded_close_price|
+|-----|------|
+|2016-01-01|434.33|
+|2021-02-01|33537.18|
+
+* Let's add this to the percentage increase formula to spot check (just looking at close_price)
+  * 33537.18 - 434.33 = 33102.85
+  * 33102.85 / 434.33 = 76.21589
+  * 76.21589 * 100 = 7621.589574

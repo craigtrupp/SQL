@@ -651,12 +651,45 @@ SELECT
 FROM summarised_data
 GROUP BY measure;
 ```
+* `SUM(COUN(*))` is a nested aggregation
+  * `COUNT(*)` aggregated function that is grouped by measure produces the first aggregate sum for that group
+  * Becuase of the `SQL Logical Order` (see below) the group by aggregate runs prior to the window function which sums the resulting aggregate count of the frequencies (and resulting count of rows )
+  * This could also be written out in two CTEs
 
 |measure|frequency|total|
 |-----|-----|-----|
 |blood_pressure|249|4318|
 |blood_glucose|3809|4318|
 |weight|260|4318|
+
+```sql
+-- CTE method
+WITH summarised_data AS (
+SELECT
+  measure
+FROM health.user_logs
+-- RANDOM() returns 0 <= value < 1 when there are no argument inputs!
+WHERE RANDOM() <= 0.1
+),
+
+frequency_counts AS (
+SELECT
+  measure,
+  COUNT(*) AS frequency
+FROM summarised_data
+GROUP BY measure
+),
+
+summed_frequencies AS (
+SELECT
+  measure,
+  frequency,
+  (SELECT COUNT(*) FROM summarised_data) AS summed_measures
+FROM frequency_counts
+)
+
+SELECT * FROM summed_frequencies;
+```
 
 <br>
 
@@ -930,7 +963,7 @@ ORDER BY
 
 <br>
 
-### Advanced Window Functions
+## Advanced Window Functions
 Now that we have a solid understanding about the ordered window functions and how the execution order impacts our window function calculations - in this following section we will cover the following advanced usage of window functions:
 
 * Lead/lag values
@@ -942,4 +975,553 @@ But before we dive into these new techniques and build upon our existing knowled
 
 #### Data Exploration (trading.daily_btc)
 ![BTC Data Expo](images/wf_dexpo_btc.png)
+
+* See `BTC_DataExcs.md` for sql queries for Bitcoin table understanding and exercise solutions 
+
+<br>
+
+### Lag & Lead Window Functions
+Lag and Lead window functions do not perform calculations on the window frame records - but rather they simply grab the value before or after the current row respectively.
+
+Traditionally - these window functions usually used with a non-empty ORDER BY clause otherwise you will return arbitrarily ordered results - which defeats the purpose of using the lag and lead functions in the first place! (unless you have a very very specific use case…)
+
+These 2 functions are super useful but also slightly tricky to wield because of one simple reason - they can be manipulated to do exactly the same thing!?
+
+<br>
+
+#### Identify Null Rows
+There is actually a really elegant method to identify all rows with **any** null values in any column, so long as the columns that you need to check are `NUMERIC` types.
+
+There is a concept called the **propogation** of null values whereby if you add null value to a number - it will simply return a null!
+
+We can use this to filter out our `trading.daily_btc` table to hunt for those null rows of data.
+
+```sql
+SELECT *
+FROM trading.daily_btc
+WHERE (
+  open_price + high_price + low_price +
+  close_price + adjusted_close_price + volume
+) IS NULL;
+
+-- This works as well
+SELECT *
+FROM trading.daily_btc
+WHERE
+  market_date IS NULL
+  OR open_price IS NULL
+  OR high_price IS NULL
+  OR low_price IS NULL
+  OR close_price IS NULL
+  OR adjusted_close_price IS NULL
+  OR volume IS NULL
+);
+```
+
+|market_date|open_price|high_price|low_price|close_price|adjusted_close_price|volume|
+|----|------|------|------|------|------|------|
+|2020-04-17|null|null|null|null|null|null|
+|2020-10-09|null|null|null|null|null|null|
+|2020-10-12|null|null|null|null|null|null|
+|2020-10-13|null|null|null|null|null|null|
+
+
+<br>
+
+### Data Philosophy
+Now before we dive in to the solution - let’s talk about a philosophical aspect of data - in particular - data that is coming from the past, present and future!
+
+The majority of the time - when we perform analysis on datasets, they are usually historical records. This means that it is a representation of what has already happened: the past
+
+You might have heard about real-time or streaming data - this is a view of what is currently happeneing or in other words: the present
+
+And when we are dealing with predictions or forecasts or anything where we need to look into time periods where we do not have data: the future
+
+One of the most common pitfalls of data analysis, data science and machine learning is this mismatch between past, present and future data.
+
+When we look at historical data, usually we will want to analyse what has happened in the past and compare it to what is happening right now or in recent times. The next natural step is to use those insights to make assessments or predictions about the future - note that these do not need to be machine learning based predictions but they could be super simple like the following scenario:
+
+<br>
+
+### Filling Null Values
+Remember those missing value rows we identified previously? We’ll now use both our `LAG` and `LEAD` window functions to demonstrate how we can fill these values - but we’ll also take a deeper inspection into why one method is better than the other when we are dealing with time based data!
+
+For our Bitcoin data example - we will need to fill in the missing values from our rows of data before we continue with our analysis. Usually null values will be ignored in many functions - however we want to make sure there are no null values in our data because there really should be data for every single day!
+
+Welcome to the world of true messy data :)
+
+<br>
+
+#### Lag and Lead for Example Null Row
+```sql
+SELECT 
+  *
+FROM trading.daily_btc
+-- CAST as a date column to look at lag/lead time of one of our missing rows
+WHERE market_date BETWEEN ('2020-04-17'::DATE - 1) AND ('2020-04-17'::DATE + 1);
+```
+|market_date|open_price|high_price|low_price|close_price|adjusted_close_price|volume|
+|-----|------|------|-----|------|-----|-----|
+|2020-04-16|6640.454102|7134.450684|6555.504395|7116.804199|7116.804199|46783242377|
+|2020-04-17|null|null|null|null|null|null|
+|2020-04-18|7092.291504|7269.956543|7089.247070|7257.665039|7257.665039|32447188386|
+
+<br>
+
+### Null Value Filling Methods
+Now let’s look at our options for how we should actually fill in the null values:
+
+1) Use the column average
+2) Fill with 0
+
+Can you identify what’s wrong with the above 2 methods? You’re probably thinking to yourself - “But Danny - these are the most common null filling methods used for machine learning!”
+
+And yes - you are correct, these are the most common null filling methods seen everywhere on Kaggle and blogs around the internet - but we need to ask ourselves - do they make sense for our problem???
+
+We have daily Bitcoin prices - and we want to fill in a missing day’s worth of data so we can use it for our analysis without removing any data (that’s also another option - but we’re not going to do that here!)
+
+Filling it with the average of the entire dataset should be not be done - what did we just mention in the philosophical section above?
+
+Filling it 0 makes zero sense too :) Unless the ENTIRE blockchain went down on a day and there was actually no trading activity that is…
+
+So what else could we try?
+
+3) Use the next day’s data
+No. See the philosophical section to remember the past, present and future!
+
+4) Use the previous day’s data
+
+Bingo!!!
+
+Well in reality - we could also do more complex things like predicting or forecasting what the missing day’s worth of data was based off even more past data, but let’s imagine that we didn’t want to do that and we want to take the simplest option!
+
+We can imagine that the missing day’s worth of trading data was exactly the same as the day before.
+
+It’s not a perfect representation of what might have actually happened on that day where the data is missing - but at least it’s something that we can use and won’t impact downstream calculations too much (hopefully!)
+
+So let’s say that we will make this data manipulation happen - how can we actually do this?
+
+Enter the `LAG` window function!
+
+<br>
+
+### Lag to Fill Missing Values
+We can simply use the `LAG` window function `OVER` the entire dataset - but remember that we will always want to use an `ORDER BY` clause for ordered window functions and `LAG` is just one of these ordered window functions!
+
+The `LAG` calculation **function** 
+* accepts a single column name as its first function input  
+* a second optional input as the `OFFSET` or number of rows to use for the calculation (more on this later!) - by default the `OFFSET` value is set to 1.
+* There is also a 3rd optional input for the `LAG` and `LEAD` functions which defines the DEFAULT value - when it is not specific explicitly, the value is set to null - you will see this in action below but it essentially uses this DEFAULT value when there are no records to perform the LAG calculation (i.e. there are no rows before this current row!)
+
+Let’s demonstrate how to implement this for just the `open_price` column below. The `LAG` function without any additional input apart from the column works by simply taking the target column’s value for the first row before it within the window frame (i.e: an offset of 1)
+
+```sql
+SELECT
+  market_date,
+  open_price,
+  LAG(open_price, 1) OVER (ORDER BY market_date) AS lag_open_price
+FROM trading.daily_btc
+WHERE market_date BETWEEN ('2020-04-17'::DATE - 1) AND ('2020-04-17'::DATE + 1);
+```
+|market_date|open_price|lag_open_price|
+|------|-------|-----|
+|2020-04-16|6640.454102|null|
+|2020-04-17|null|6640.454102|
+|2020-04-18|7092.291504|null|
+
+What do you notice about the output above? A few questions might come to mind:
+
+* Why don’t I get a lag_open_price for April the 16th?
+
+The `LAG` function looks at the row prior to the current row within the specified window frame for the target column value - since there is no rows before April 16th in our window frame it returns a null.
+
+But wait a moment - don’t we have data for the 15th of April in our original dataset - how come it isn’t showing up in this window frame?
+
+Can you see why the row for the 15th of April is not used for our window function? (Hint: it has something to do with the logical order of execution! (The Where clause sets the window of data to work on prior to the running of the window function))
+
+This exact point is a perfect place to demonstrate what we meant when talked about the 3rd optional function input for the LAG and LEAD functions:
+
+Let’s demonstrate how we can change the 3rd optional DEFAULT input in the query below to 6,000:
+
+![Lag Function](images/lag_dynamics.png)
+
+```sql
+SELECT
+  market_date,
+  open_price,
+  LAG(open_price, 1, 6000::NUMERIC) OVER (ORDER BY market_date) AS lag_open_price
+FROM trading.daily_btc
+WHERE market_date BETWEEN ('2020-04-17'::DATE - 1) AND ('2020-04-17'::DATE + 1);
+```
+|market_date|open_price|lag_open_price|
+|-----|------|------|
+|2020-04-16|6640.454102|6000|
+|2020-04-17|null|6640.454102|
+|2020-04-18|7092.291504|null|
+
+Nice so it looks like we can replace that first row null value to 6,000 - but what about that null value in the last row for April 18th?
+
+Because we used an `ORDER BY market_date` - the window frame is sorted such that April 17th is the row directly before April 18th - and what is the value for the open_price column?
+
+It is also **null** - so it’s only expected that our `LAG` window function would return this value too!
+
+Now that we’ve covered the inputs of the `LAG` function - there is the next confusing thing: we can do this exact same operation but using the `LEAD` function!
+
+<br>
+
+### Lead Alternate Implementation
+The `LEAD` window function is exactly the same as the `LAG` window function but instead of looking at the previous row in the window frame - it looks at the following row!
+
+We can actually perform the same null filling strategy of taking the previous day’s value for our Bitcoin dataset - by changing the order of our `ORDER BY` clause to rearrange the window frame row order!
+
+Let’s add a new column to our previous query for the lead_open_price:
+
+```sql
+SELECT
+  market_date,
+  open_price,
+  LAG(open_price) OVER (ORDER BY market_date) AS lag_open_price,
+  LEAD(open_price) OVER (ORDER BY market_date DESC) AS lead_open_price
+FROM trading.daily_btc
+WHERE market_date BETWEEN ('2020-04-17'::DATE - 1) AND ('2020-04-17'::DATE + 1);
+```
+|market_date|open_price|lag_open_price|lead_open_price|
+|-----|------|------|-----|
+|2020-04-16|6640.454102|null|null|
+|2020-04-17|null|6640.454102|6640.454102|
+|2020-04-18|7092.291504|null|null|
+
+* Well what do you know? They are exactly the same…or are they?!?
+
+<br>
+
+### Philosophy Round 2
+Here is where our philosophical concept really kicks in - can you identify the issue with using a `LEAD` window function to calculate the previous day’s value in our time series example?
+
+When we are dealing with data - the language that we use to explain what we are doing with our transformations and manipulations is really important!
+
+Some people brush this off as just “syntax” or “verbatim” but in reality - there are multiple reasons why we should avoid this!
+
+When reading and reviewing code - the function that is used is important!
+
+When you see a `LEAD` window function being used - a skilled SQL developer will instantly think that you are obtaining data points from a following row.
+
+However - as you continue to read the code and see an `ORDER BY DESC` - you need to process an additional component, adding to the mental complexity of the function - now you need to replace the “following row” concept in your mind with the “previous row” - but still stay aware of the fact that you are using a `LEAD` function and not a `LAG` function.
+
+See - this last paragraph is confusing as heck and I’m not even reviewing any specific code!!!
+
+Instead of doing this round-about logical acrobatics - wouldn’t it be so much simpler if you just used the right function for the right situation???
+
+* So whenever you need to obtain a previous row with a time based or an incremental based `ORDER BY` criteria - ALWAYS use `LAG` and a default ascending `ORDER BY` clause!
+
+* The reverse is true if you ever need a “future” value for the current row - use the `LEAD` function with a default ascending `ORDER BY` clause!
+
+Ok - time to end my rant so we can continue with our example!
+
+<br>
+
+### Coalesce to Update NULL Rows
+So now that we’ve learnt about the proper use of a `LAG` function (and the improper use of the `LEAD` function) - how can we use this to actually help us update the dataset so we can fill in these null values once and for all?
+
+Enter the `COALESCE` function - let’s demonstrate how we can use this with our previous example with the 17th of April data only inside a CTE:
+
+```sql
+WITH april_17_data AS (
+  SELECT
+    market_date,
+    open_price,
+    LAG(open_price) OVER (ORDER BY market_date) AS lag_open_price
+  FROM trading.daily_btc
+  WHERE market_date BETWEEN ('2020-04-17'::DATE - 1) AND ('2020-04-17'::DATE + 1)
+)
+SELECT
+  market_date,
+  open_price,
+  lag_open_price,
+  COALESCE(open_price, lag_open_price) AS coalesce_open_price
+FROM april_17_data;
+```
+|market_date|open_price|lag_open_price|coalesce_open_price|
+|-----|-----|-------|-----|
+|2020-04-16|6640.454102|null|6640.454102|
+|2020-04-17|null|6640.454102|6640.454102|
+|2020-04-18|7092.291504|null|7092.291504|
+
+* This looks great - and neatly demonstrates what the `COALESCE` function does - just note the function can actually accept any number of columns or even raw values (as long as they are the data type) - 
+  * the order is important as it will return the first non-null value from the inputs from left to right!
+
+<br>
+
+### Update Tables
+Now that we’ve learnt how to use the `COALESCE` and the `LAG` function - let’s now create a new temporary table which we will use for the rest of this tutorial by updating all of the columns and null rows with what we’ve learnt - but let’s make this more difficult by forcing you to do this 2 ways!
+
+#### Create Temp Table
+```sql
+DROP TABLE IF EXISTS updated_daily_btc;
+CREATE TEMP TABLE updated_daily_btc AS
+SELECT
+  market_date,
+  COALESCE(
+    open_price,
+    LAG(open_price) OVER (ORDER BY market_date)
+  ) AS open_price,
+  COALESCE(
+    high_price,
+    LAG(high_price) OVER (ORDER BY market_date)
+  ) AS high_price,
+  COALESCE(
+    low_price,
+    LAG(low_price) OVER (ORDER BY market_date)
+  ) AS low_price,
+  COALESCE(
+    close_price,
+    LAG(close_price) OVER (ORDER BY market_date)
+  ) AS close_price,
+  COALESCE(
+    adjusted_close_price,
+    LAG(adjusted_close_price) OVER (ORDER BY market_date)
+  ) AS adjusted_close_price,
+  COALESCE(
+    volume,
+    LAG(volume) OVER (ORDER BY market_date)
+  ) AS volume
+FROM trading.daily_btc;
+
+-- test that our previously missing value dates are filled!
+SELECT *
+FROM updated_daily_btc
+WHERE market_date IN (
+  '2020-04-17',
+  '2020-10-09',
+  '2020-10-12',
+  '2020-10-13'
+);
+```
+|market_date|open_price|high_price|low_price|close_price|adjusted_close_price|volume|
+|-----|-----|----|----|----|------|------|
+|2020-04-17|6640.454102|7134.450684|6555.504395|7116.804199|7116.804199|46783242377|
+|2020-10-09|10677.625000|10939.799805|10569.823242|10923.627930|10923.627930|21962121001|
+|2020-10-12|11296.082031|11428.813477|11288.627930|11384.181641|11384.181641|19968627060|
+|2020-10-13|null|null|null|null|null|null|
+
+![Lag Offset](images/lag_offset_temp.png)
+
+* Well - what were the values for the 12th of October in our original dataset? Oh yeah - they were also null…D’oh!
+
+<br>
+
+### Lag Function With Offset Input
+Remember what I mentioned about the second LAG function input - the offset value? By default if we only use a column reference for the LAG function, it will use 1 as the default offset value - meaning that it will take the row directly before the current row during the window function calculation step.
+
+We will only demonstrate the different options on just the open_price column so we don’t need to write so much code - we’ll also keep a filter on just the few days around the 13th of October below.
+
+First - let’s also use a CASE WHEN to specify the equivalent of an IF-ELSE block in SQL - always remember to END your CASE WHEN statements - it’s a very common SQL syntax error!
+
+```sql
+SELECT
+  market_date,
+  open_price,
+  COALESCE(
+    open_price,
+    CASE
+      -- Default to catch this date and look 2 rows back, not the default or 1
+      WHEN market_date = '2020-10-13'
+        THEN LAG(open_price, 2) OVER (ORDER BY market_date)
+      ELSE LAG(open_price, 1) OVER (ORDER BY market_date)
+      END
+  ) AS adj_open_price
+FROM trading.daily_btc
+WHERE market_date BETWEEN '2020-10-10'::DATE AND '2020-10-13'::DATE;
+```
+|market_date|open_price|adj_open_price|
+|-----|-----|------|
+|2020-10-10|11059.142578|11059.142578|
+|2020-10-11|11296.082031|11296.082031|
+|2020-10-12|null|11296.082031|
+|2020-10-13|null|11296.082031|
+
+* Also, using the logic of sequential item selection and first non-null value for `COALESCE`, the following query could work as well as the initial conditional catch can simply be the third value that would be used in the case of repeating null rows that wouldn't catch a lag value
+
+```sql
+SELECT 
+  market_date,
+  open_price,
+  COALESCE(
+    open_price,
+    LAG(open_price, 1) OVER (ORDER BY market_date),
+    LAG(open_price, 2) OVER (ORDER BY market_date)
+  ) AS adj_open_prices
+FROM trading.daily_btc
+WHERE market_date BETWEEN '2020-10-10'::DATE AND '2020-10-13'::DATE
+```
+* Same table output as above 
+
+<br>
+
+### Update Tables & Window Clause Simplification
+If you find that you are repeating a certain window multiple times in the same query - you can actually use the `WINDOW` clause after the final FROM section of your SQL query and refer to a simple alias in the window function call within the select expressions in the body of the SQL query.
+
+This is awesome because it ticks off a few boxes in terms of having nice looking code:
+
+1) Harder to make mistakes because we only need to specify the window once
+2) Sticks to the DRY principle (DO NOT REPEAT YOURSELF!)
+3) Keeps the SELECT body of the SQL query very clean looking
+
+Let’s use this new technique for our previous query - take a look at the final line of the query first to see how we can define this window!
+
+Note that you can actually define multiple windows by using a comma separated list as shown below - you don’t even need to use them in the query - just be careful what you name your windows and do not get them mixed up with default SQL functions or any other variable/table name that you’ve created in the database session!
+
+```sql
+DROP TABLE IF EXISTS updated_daily_btc;
+CREATE TEMP TABLE updated_daily_btc AS
+SELECT
+  market_date,
+  COALESCE(
+    open_price,
+    LAG(open_price, 1) OVER w,
+    LAG(open_price, 2) OVER w
+  ) AS open_price,
+  COALESCE(
+    high_price,
+    LAG(high_price, 1) OVER w,
+    LAG(high_price, 2) OVER w
+  ) AS high_price,
+  COALESCE(
+    low_price,
+    LAG(low_price, 1) OVER w,
+    LAG(low_price, 2) OVER w
+  ) AS low_price,
+  COALESCE(
+    close_price,
+    LAG(close_price, 1) OVER w,
+    LAG(close_price, 2) OVER w
+  ) AS close_price,
+  COALESCE(
+    adjusted_close_price,
+    LAG(adjusted_close_price, 1) OVER w,
+    LAG(adjusted_close_price, 2) OVER w
+  ) AS adjusted_close_price,
+  COALESCE(
+    volume,
+    LAG(volume, 1) OVER w,
+    LAG(volume, 2) OVER w
+  ) AS volume
+FROM trading.daily_btc
+-- NOTE: checkout the syntax where I've included an unused window below!
+WINDOW
+  w AS (ORDER BY market_date),
+  unused_window AS (ORDER BY market_date DESC);
+
+-- inspect a few rows of the updated dataset for October
+SELECT *
+FROM updated_daily_btc
+WHERE market_date BETWEEN '2020-10-08'::DATE AND '2020-10-15'::DATE;
+```
+
+![Nulls Filled](images/lag_table_coalesce.png)
+
+---
+
+<br>
+
+## Cumulative Calculations
+Now that our dataset is finally cleaned up and we no longer have any null values - we can now focus on the next step of our window functions journey and explore how we can perform cumulative calculations!
+
+To break this example down in case you haven’t come across cumulative metrics before - let’s investigate just the first 10 rows of the volume column from our updated_daily_btc dataset sorted by market_date and demonstrate what we need to do at a low level.
+
+Take note that the volume metric is the total number of Bitcoins traded on that specific market_date!
+
+```sql
+SELECT 
+  market_date,
+  volume
+FROM
+trading.daily_btc
+ORDER BY market_date
+LIMIT 10
+```
+
+|market_date	|volume|
+|-----|-----|
+|2014-09-17	|21,056,800|
+|2014-09-18	|34,483,200|
+|2014-09-19	|37,919,700|
+|2014-09-20	|36,863,600|
+|2014-09-21	|26,580,100|
+|2014-09-22	|24,127,600|
+|2014-09-23	|45,099,500|
+|2014-09-24	|30,627,700|
+|2014-09-25	|26,814,400|
+|2014-09-26	|21,460,800|
+
+![Running Sum](images/running_sum.png)
+
+### Self Join (Not the Easiest To Read)
+```sql
+WITH volume_data AS (
+  SELECT
+    market_date,
+    volume
+  FROM updated_daily_btc
+  ORDER BY market_date
+  LIMIT 10
+)
+SELECT
+  t1.market_date,
+  t1.volume,
+  SUM(t2.volume) AS running_total
+FROM volume_data t1
+INNER JOIN volume_data t2
+  ON t1.market_date >= t2.market_date
+GROUP BY 1,2
+ORDER BY 1,2;
+```
+|market_date|volume|running_total
+|-----|-----|-----|
+|2014-09-17|21056800|21056800|
+|2014-09-18|34483200|55540000|
+|2014-09-19|37919700|93459700|
+|2014-09-20|36863600|130323300|
+|2014-09-21|26580100|156903400|
+|2014-09-22|24127600|181031000|
+|2014-09-23|45099500|226130500|
+|2014-09-24|30627700|256758200|
+|2014-09-25|26814400|283572600|
+|2014-09-26|21460800|305033400|
+
+<br>
+
+### There's A Better Way!
+* Window Function CTE
+  * Easier to read and follow, quite efficient too!
+
+```sql
+WITH volume_data AS (
+  SELECT
+    volume,
+    market_date
+  FROM updated_daily_btc
+  ORDER BY market_date
+  LIMIT 10
+)
+SELECT
+  market_date,
+  volume,
+  SUM(volume) OVER (
+    ORDER BY market_date
+  ) AS runnin_sum
+  FROM volume_data
+```
+|market_date|volume|runnin_sum|
+|----|------|------|
+|2014-09-17|21056800|21056800|
+|2014-09-18|34483200|55540000|
+|2014-09-19|37919700|93459700|
+|2014-09-20|36863600|130323300|
+|2014-09-21|26580100|156903400|
+|2014-09-22|24127600|181031000|
+|2014-09-23|45099500|226130500|
+|2014-09-24|30627700|256758200|
+|2014-09-25|26814400|283572600|
+|2014-09-26|21460800|305033400|
 

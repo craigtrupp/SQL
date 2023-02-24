@@ -34,7 +34,7 @@ Just a warning that some of these things I’m going to describe in the followin
 
 Window functions consist of the following components:
 
-![Window Functions Components](images/wf_bcomponents.png)
+![Window Functions Components](Images/wf_bcomponents.png)
 
 <br>
 
@@ -50,17 +50,17 @@ Let’s start with this super simple example of an aggregate group by sum and it
 
 The key things to note are the similarity of the `sum_sales` column output for each example - they are exactly the same!
 
-![Partition By](images/wf_partitionby.png)
+![Partition By](Images/wf_partitionby.png)
 
 <br>
 
 #### Basic Group By Sum - SQL Exectuion Flow
-![Group By SQL Exectuion](images/wf_basicgroupbyagg.png)
+![Group By SQL Exectuion](Images/wf_basicgroupbyagg.png)
 
 <br>
 
 #### Basic Window Function 
-![Basic Window Function](images/wf_basicwf.png)
+![Basic Window Function](Images/wf_basicwf.png)
 
 * Main difference is you can see that the while the `Group By` collapses all rows that are grouped together whereas the `Window Function` includes the rows collapsed or grouped together as well as display the `sales` column that the aggregate function is run on 
 
@@ -121,7 +121,7 @@ We’ve already seen how a single column can be used with the `PARTITION BY` cla
 
 In the visual example below - you can think of the partitioning as splitting the dataset into smaller groups based on the unique combination of column values from each input to the `PARTITION BY`
 
-![Partition 2 Columns](images/wf_prt_2cols.png)
+![Partition 2 Columns](Images/wf_prt_2cols.png)
 
 * Also note that we are not restricted to only using columns as inputs, we can use other derived expressions also, just like you would use in a regular SELECT statement.
 
@@ -167,7 +167,7 @@ We can also use **different levels** for **multiple window functions** in a sing
 
 We also demonstrate the `empty OVER clause` in the query below to calculate the `total_sales` column for our dataset.
 
-![Multiple Level](images/wf_mlprtby.png)
+![Multiple Level](Images/wf_mlprtby.png)
 
 #### SQL Code
 ```sql
@@ -207,7 +207,7 @@ We can also apply multiple different window function calculations instead of jus
 
 In the following example, we demonstrate how to use `AVG` and `MAX` window functions.
 
-![Multiple Calculations](images/wf_multilevelcalc.png)
+![Multiple Calculations](Images/wf_multilevelcalc.png)
 * Below is an example of using multiple aggregations on partitioned groups or over empty window frames (aka entire dataset)
 
 ```sql
@@ -255,7 +255,7 @@ FROM customer_sales;
 <br>
 
 ### Empty or Missing Partition By
-![Combine](images/wf_wf_grpby.png)
+![Combine](Images/wf_wf_grpby.png)
 * Challenge from the above sample created sales table is to use both a `window` function and standard `GROUP BY` to achieve the following posed question above
 
 ```sql
@@ -292,7 +292,7 @@ This is directly copied from the Dealing with Duplicates tutorial earlier when w
 * Let’s also inspect that measure column and take a look at the most frequent values within this column using a `GROUP BY` and `ORDER BY DESC` combo from the last tutorial - let’s also throw in that percentage column that we went through also!
 
 
-![OVER & GROUPBY](images/wf_emprt_health.png)
+![OVER & GROUPBY](Images/wf_emprt_health.png)
 
 * Like above with our created temp tables, we can use a similar logic to leverage a `GROUPBY` and `OVER` query to pull a different aggregate percentage
 * Similar in that the window function includes the aggregate function on the column being grouped by 
@@ -723,9 +723,9 @@ In the following section we will start looking into that `ORDER BY` component of
 
 Logically - we can think of the `ORDER BY` happening after the `PARTITION BY` clause as the sorting of records will happen within each partition or group that is separated as part of the window function.
 
-![Rnk Window 1](images/wk_rnkwdf_prt_ord.png)
+![Rnk Window 1](Images/wk_rnkwdf_prt_ord.png)
 
-![Rnk Window 2](images/wk_rnkwdf_prt_ord_desc.png)
+![Rnk Window 2](Images/wk_rnkwdf_prt_ord_desc.png)
 
 ```sql
 -- we remove any existing customer_sales table first!
@@ -843,7 +843,7 @@ FROM ordered_window_metrics
 ORDER BY measure_value DESC
 LIMIT 10;
 ```
-![Window Ordering First](images/wf_dofnct_1_2.png)
+![Window Ordering First](Images/wf_dofnct_1_2.png)
 
 ```sql
 -- Select 10 smallest rows by measure_value
@@ -853,7 +853,7 @@ ORDER BY measure_value
 LIMIT 10;
 ```
 
-![Window Ordering Second](images/wf_dofnct_2_2.png)
+![Window Ordering Second](Images/wf_dofnct_2_2.png)
 
 <br>
 
@@ -913,7 +913,7 @@ ORDER BY
   measure,
   measure_value DESC;
 ```
-![Rank Window Functions 3](images/wfnct_dfnct_prtranks.png)
+![Rank Window Functions 3](Images/wfnct_dfnct_prtranks.png)
 
 * Notably the `RANK` will advance n amount of numbers if a tie is seen (see how weight measure doesn't have a **2** in the _rank column)
 * `DENSE RANK` will continue the sequence and not skip ahead regardless of ties seen
@@ -955,7 +955,7 @@ ORDER BY
 ```
 * See above to take the first and last 3 rows from each measure based off the `measure_valu`e records - as a bonus we will also use a `CASE WHEN` statement to generate a `value_ranking` to show which records are the Top 3 or Bottom 3:
 
-![Ascending & Descending](images/wf_cmb_asc_desc.png)
+![Ascending & Descending](Images/wf_cmb_asc_desc.png)
 
 <br>
 
@@ -974,7 +974,7 @@ Now that we have a solid understanding about the ordered window functions and ho
 But before we dive into these new techniques and build upon our existing knowledge - let’s first introduce our newest dataset here to make this tutorial as memorable as possible!
 
 #### Data Exploration (trading.daily_btc)
-![BTC Data Expo](images/wf_dexpo_btc.png)
+![BTC Data Expo](Images/wf_dexpo_btc.png)
 
 * See `BTC_DataExcs.md` for sql queries for Bitcoin table understanding and exercise solutions 
 
@@ -1143,7 +1143,7 @@ This exact point is a perfect place to demonstrate what we meant when talked abo
 
 Let’s demonstrate how we can change the 3rd optional DEFAULT input in the query below to 6,000:
 
-![Lag Function](images/lag_dynamics.png)
+![Lag Function](Images/lag_dynamics.png)
 
 ```sql
 SELECT
@@ -1418,7 +1418,7 @@ FROM updated_daily_btc
 WHERE market_date BETWEEN '2020-10-08'::DATE AND '2020-10-15'::DATE;
 ```
 
-![Nulls Filled](images/lag_table_coalesce.png)
+![Nulls Filled](Images/lag_table_coalesce.png)
 
 ---
 
@@ -1454,7 +1454,7 @@ LIMIT 10
 |2014-09-25	|26,814,400|
 |2014-09-26	|21,460,800|
 
-![Running Sum](images/running_sum.png)
+![Running Sum](Images/running_sum.png)
 
 ### Self Join (Not the Easiest To Read)
 ```sql

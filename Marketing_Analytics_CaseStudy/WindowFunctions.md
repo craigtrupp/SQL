@@ -283,6 +283,20 @@ SELECT
         * Ex : 550 customer A total sales divided by 750 for 73%
 * The `OVER()` function runs after the `GROUP BY` to get the total window sales column data 
 
+```sql
+-- What is the sum of sales per customer and their percentage of total_sales (Using Groupby with corresponding window function for sum of all sales for percentage)
+SELECT
+  customer_id,
+  SUM(sales) AS customer_sale_total,
+  ROUND(
+  100 * (SUM(sales) / SUM(SUM(sales)) OVER())
+  , 2) AS customer_percentage,
+  SUM(SUM(sales)) OVER() AS total_sales
+FROM customer_sales
+GROUP BY customer_id;
+```
+* Another similar way to approach for a combination of using the GROUP BY and Window frame total to calculate a percentage
+
 <br>
 
 We mentioned that the default behaviour for `PARTITION BY` when the window function has an empty `OVER` clause is to perform calculations across all the rows of the dataset - in fact, we’ve also used this exact strategy before for parts of our data exploration section earlier!
@@ -404,10 +418,18 @@ GROUP BY measure;
 |blood_pressure|2417|43891|
 |weight|2782|43891|
 
-* **Reminder** : We can't use the alias of the `COUNT(*)` **frequency** unles we used a CTE or subquery
+* **Reminder** : We can't use the alias of the `COUNT(*)` **frequency** unless we used a CTE or subquery
 
 ```sql
--- CTE method
+-- Query that would return a "column "frequency" does not exist"
+SELECT
+  measure,
+  COUNT(*) AS frequency,
+  SUM(frequency) OVER () AS total
+FROM health.user_logs
+GROUP BY measure;
+
+-- CTE method to perform the operation
 WITH summarised_data AS (
 SELECT
   measure,
@@ -435,7 +457,7 @@ FROM (
 ) AS summarised_data;
 ```
 
-* Produces same table output as above SUM and WINDOW function 
+* Produces same table output as above SUM and WINDOW function just above the reminder above
 
 <br>
 
@@ -490,7 +512,7 @@ HAVING COUNT(*) > 2800;
 |----|-----|-----|
 |blood_glucose|38692|38692|
 
-* We ca use the frequency aggregate `COUNT` called on the grouped measure to limit any fequency not over the threshold above
+* We can use the frequency aggregate `COUNT` called on the grouped measure to limit any fequency not over the threshold above
 
 ```sql
 SELECT
@@ -651,7 +673,7 @@ SELECT
 FROM summarised_data
 GROUP BY measure;
 ```
-* `SUM(COUN(*))` is a nested aggregation
+* `SUM(COUNT(*))` is a nested aggregation
   * `COUNT(*)` aggregated function that is grouped by measure produces the first aggregate sum for that group
   * Becuase of the `SQL Logical Order` (see below) the group by aggregate runs prior to the window function which sums the resulting aggregate count of the frequencies (and resulting count of rows )
   * This could also be written out in two CTEs

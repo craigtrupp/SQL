@@ -1376,7 +1376,8 @@ SELECT
 FROM trading.daily_btc
 WHERE market_date BETWEEN '2020-10-10'::DATE AND '2020-10-13'::DATE
 ```
-* Same table output as above 
+* Same table output as above
+* Recall that `COALESCE` in this scenario takes the first non-null value from arguments provided. This would account for consecutive type null rows 
 
 <br>
 
@@ -1514,7 +1515,7 @@ ORDER BY 1,2;
 <br>
 
 ### There's A Better Way!
-* Window Function CTE
+* `Window Function CTE`
   * Easier to read and follow, quite efficient too!
 
 ```sql
@@ -1547,3 +1548,494 @@ SELECT
 |2014-09-25|26814400|283572600|
 |2014-09-26|21460800|305033400|
 
+
+<br>
+
+---
+
+## Window Frame Clause
+The `FRAME` clause is something that we’ve been implicitly using without really knowing about it up until now for our cumulative sum calculations.
+
+The first thing to know about the `FRAME` clause is what is actually used as default when we do not explicitly specify them in our window functions.
+* **RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW**
+```sql
+SELECT
+  market_date, 
+  volume, 
+  SUM(volume) OVER (ORDER BY market_date) AS running_sum_w_o_range,
+  SUM(volume) OVER (
+    ORDER BY market_date
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) as running_sum_default_range
+FROM updated_daily_btc
+LIMIT 5;
+```
+|market_date|volume|running_sum_w_o_range|running_sum_default_range|
+|------|-----|------|------|
+|2014-09-17|21056800|21056800|21056800|
+|2014-09-18|34483200|55540000|55540000|
+|2014-09-19|37919700|93459700|93459700|
+|2014-09-20|36863600|130323300|130323300|
+|2014-09-21|26580100|156903400|156903400|
+
+* Default range in first window function is range our a running `cumulative` sum the window function performs with the aggregate function on the defined sql column
+
+<br>
+
+### Window Frame Components
+So we can confirm that the defaults are being applied for our cumulative sum window function - but what does all this mean?
+
+The following diagram will break down the different components of our window frame clause so we can start understanding how this works and most importantly - how we can use them to generate the different outputs that we need!
+
+There is a lot of information in the visual below but don’t worry - we will cover everything soon!
+
+![WFrame Comps](images/wf_framecomps.png)
+
+These components are difficult to explain separately as they need to interact with the other components for it to make sense.
+
+The various combinations of window frame options are determined by the intersection of 3 components:
+
+#### Window Frame Modes
+  * RANGE vs ROWS (vs GROUPS)
+
+#### Start and End Frames
+  * PRECEDING vs FOLLOWING
+  * UNBOUNDED vs OFFSET
+
+#### Frame Exclusions
+  * CURRENT ROW vs TIES vs NO OTHERS (vs GROUP)
+
+note: GROUPS is only implemented for some specific SQL flavours including PostgreSQL and SQLite
+
+To explain and understand these different components more deeply - let’s create a very simple dataset to illustrate the different results.
+
+<br>
+
+### Example Dataset
+The base dataset contains only a single column called val in the following frame_example table - however we will also be adding 2 columns for the `ROW_NUMBER` and `DENSE_RANK` window calculations. You will see why we do this soon!
+
+```sql
+DROP TABLE IF EXISTS frame_example;
+CREATE TEMP TABLE frame_example AS
+WITH input_data (val) AS (
+ VALUES
+ (1),
+ (1),
+ (2),
+ (6),
+ (9),
+ (9),
+ (20),
+ (20),
+ (25)
+)
+SELECT
+  val,
+  ROW_NUMBER() OVER w AS _row_number,
+  DENSE_RANK() OVER w AS _dense_rank_golf
+FROM input_data
+WINDOW
+  w AS (ORDER BY val);
+
+-- inspect the dataset
+SELECT * FROM frame_example;
+```
+|val|_row_number|_dense_rank_golf|
+|----|-----|-----|
+|1|1|1|
+|1|2|1|
+|2|3|2|
+|6|4|3|
+|9|5|4|
+|9|6|4|
+|20|7|5|
+|20|8|5|
+|25|9|6|
+
+<br>
+
+### Default Cumulative Sum
+Let’s revisit our basic cumulative sum example but this time using this very basic dataset.
+
+If we were to implement a cumulative sum by simply using the SUM function with an ORDER BY without specifying the frame clause - we would be using the standard default window frame clause: `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`
+
+Let’s inspect what this yields us for the cumulative sum and see if it checks out with what we expect!
+
+```sql
+SELECT
+  val,
+  SUM(val) OVER (
+    ORDER BY val
+    -- you can comment out the following line to make sure it is the default!
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS cum_sum,
+  _row_number,
+  _dense_rank_golf
+FROM frame_example;
+```
+|val|cum_sum|_row_number|_dense_rank_golf|
+|---|-----|-----|------|
+|1|2|1|1|
+|1|2|2|1|
+|2|4|3|2|
+|6|10|4|3|
+|9|28|5|4|
+|9|28|6|4|
+|20|68|7|5|
+|20|68|8|5|
+|25|93|9|6|
+
+What do you notice about this output? Does it match up with what you expected when you thought about cumulative sums?
+
+This is where we need to dig deeper to understand the **differences** between the `window frame modes`!
+
+<br>
+
+### Window Frame Modes
+As we mentioned above - there are 3 window frame modes which will modulate the output differently:
+
+1. RANGE
+2. ROWS
+3. GROUPS Note: this is not always implemented for all SQL flavours!
+
+We will first focus on the difference between the `RANGE` and `ROWS` as these are commonly misunderstood by SQL developers and analytics practitioners leading to many issues with their ordered aggregate window function calculations!
+
+The `GROUPS` mode is available in PostgreSQL and SQLite at this time of writing in February 2021 but not all other SQL flavours have the same functionality so always check the base documentation for whatever type of SQL you are using, always!
+
+Let’s compare what happens when we use the RANGE, ROWS and GROUPS for the frame mode with our previous basic dataset and also keeping our default start and end frames of UNBOUNDED PRECEDING and CURRENT ROW:
+
+```sql
+SELECT
+  val,
+  SUM(val) OVER (
+    ORDER BY val
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS _range,
+  SUM(val) OVER (
+    ORDER BY val
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS _rows,
+  SUM(val) OVER (
+    ORDER BY val
+    GROUPS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS _groups,
+  _row_number,
+  _dense_rank_golf
+FROM frame_example;
+```
+|val|_range|_rows|_groups|_row_number|_dense_rank_golf|
+|---|-----|----|-----|-----|------|
+|1|2|1|2|1|1|
+|1|2|2|2|2|1|
+|2|4|4|4|3|2|
+|6|10|10|10|4|3|
+|9|28|19|28|5|4|
+|9|28|28|28|6|4|
+|20|68|48|68|7|5|
+|20|68|68|68|8|5|
+|25|93|93|93|9|6|
+
+* The `_rows` column is the default intuitive way a **cumulative_sum** type window function would perform in our heads
+* The `_range` and `_groups` column performs a like grouping of the valu to perform almost a lead search for the value to aggregate the running sum for that val and any rows that have the same val
+  * If you look at the equal values within val column (for instance **9**) you can see the first row value for `_range` and `_groups` have the sum for each row with a val of 9 added to the running sum in a lead type fashion whereas the `_rows` aggregate is not grouping any equal or shared values and simply adding one row at a time
+
+<br>
+
+### Unbounded Preceding and Current Row & WFrame Differences (Above)
+So far we have only been dealing with a single type of start and end frame - `UNBOUNDED PRECEDING and CURRENT ROW`
+
+Having a start frame of `UNBOUNDED PRECEDING` means to include records from the start of the window frame.
+
+An end frame of `CURRENT ROW` means to only include up to the current record for the window function calculation.
+
+This particular set of start and end frame inputs also modulate with the window frame mode as we’ve seen in the example above.
+
+The most notable feature is how the `RANGE` and `GROUPS` mode will use the **same cumulative sum value** for records **which have equal values** - whilst the `ROWS` will perform the cumulative sum in a way which we intuitively think about it as having the row values added to eachother one by one.
+
+However deciding when we want to actually use `ROWS vs RANGE` comes down to answer the question - what do you want your output to look like?
+
+Do you want the same sum values for duplicate row values or would you like to have each individual row with its own separate cumulative metric? The choice is yours!
+
+Let’s continue with the comparison between `offset and unbounded` next.
+
+<br>
+
+### Offset and Unbounded
+The differences between these 2 terms are simple in that any start or end frame with an offset will only be limited to the specified offset size within the window frame, as opposed to the full window frame unbounded.
+
+However - the practical differences are not that straightforward as the offset values and size of the window frames will be determined by the window frame mode that is chosen!
+
+Let’s compare the 3 separate modes and their offset values below:
+
+![Offset & Unbounded](images/wframe_off_unb.png)
+
+As you might have noticed - they differ quite greatly across the different window frame modes!
+
+* The `ROWS` mode gives us the most intuitive offset values as we simply increment the offset value by 1 as we move before and after relative to the current row.
+  * `Offset` preceding can be seen as the offset from the Current row (how many rows back or to the left of the current row)
+  * As such the `Offset` following has the same offset for how many rows to the right
+
+<br>
+
+* The `RANGE` mode uses the actual ordered values to generate the offset values - this has a deep implication, especially when we are dealing with window functions that use date fields in the ORDER BY within the OVER clause. We will dig into this deeper when we return to our Bitcoin data soon!
+  * The range is dealing with the **values** or offset difference between the current row **9** and the value of the row to the left or right
+  * Ex : The value of **3** as the first range value to the left of the current row is the difference in the `RANGE` between 6 and 9
+
+<br>
+
+* The `GROUPS` mode is sort of like a combination between the ROWS and the RANGE where we would essentially compare not just the actual values, but also the position of their groups relative to the current row.
+  * More Similar to `ROWS` in that it is looking at an offset distance between rows but simultaneously is looking at the value of the column how many rows back
+  * So with **equal values** (Ex : 1) we can see that the Groups offset value shares the same offset should subsequent rows have the same values but be shared over two rows
+  * Ex : Another example is if you look forward for the `Groups` offset value, you can see that the subsequent row is seen as the same group sharing the same value of **9** and with the first offset of 1 for rows following being on the separate value of **20** that is two rows intuitively from the current row
+
+The following are examples of how we can set the start and end frames using different offset values for our 3 window frame modes:
+
+![Range Mode](images/wframe_rangemode.png)
+  * Remember this is the default window frame as we saw above (Frame is)
+
+<br>
+
+![Rows Mode](images/wframe_rowsmode.png)
+
+<br>
+
+![Group Mode](images/wframe_groupsmode.png)
+
+<br>
+
+### Frame Exclusion
+Now that we’ve investigated how to define the window frames using the different window frame modes and also the offset and unbounded preceding and following options - let’s now move onto excluding our values within the window frames.
+
+There are 4 options for excluding records within the window frame:
+
+* CURRENT ROW
+* TIES
+* GROUP
+* NO OTHERS (default)
+
+Note that you must have an explicit window frame clause inside the OVER clause otherwise the frame exclusion will cause an error!
+* Not the most commonly applied logical use case in SQL (pretty advanced! and not commonly seen)
+
+```sql
+SELECT
+  val,
+  SUM(val) OVER (
+    ORDER BY val
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS _default,
+  SUM(val) OVER (
+    ORDER BY val
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    EXCLUDE CURRENT ROW
+  ) AS _excl_current_row,
+  SUM(val) OVER (
+    ORDER BY val
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    EXCLUDE TIES
+  ) AS _excl_ties,
+  SUM(val) OVER (
+    ORDER BY val
+    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    EXCLUDE GROUP
+  ) AS _excl_groups,
+  _row_number,
+  _dense_rank_golf
+FROM frame_example;
+```
+|val|_default|_excl_current_row|_excl_ties|_excl_groups|_row_number|_dense_rank_golf|
+|---|-----|-----|-----|-----|----|-----|
+|1|2|1|1|null|1|1|
+|1|2|1|1|null|2|1|
+|2|4|2|4|2|3|2|
+|6|10|4|10|4|4|3|
+|9|28|19|19|10|5|4|
+|9|28|19|19|10|6|4|
+|20|68|48|48|28|7|5|
+|20|68|48|48|28|8|5|
+|25|93|68|93|68|9|6|
+
+#### Column Notes
+* `_default` : is using the **RANGE** window frame which is a running sum that aggregates the values of the column and designates the same summed should the value be shared over multiple rows (look at vals 9 & 20 for the running sum aggreaged over two shared values)
+* `_excl_current_row` : The first value of 19 is instructive here for this column as the RANGE frame as the RANGE of this row's value is equal (two 9's), the summation of 9 into the running total for each is excluding the CURRENT ROW but the equals values still has one of the two values added as it's the same range 
+  * A bit quirky here as it can exclude a current row that in theory has two values from the frame but 
+* `_excl_ties` : Equal values for a current row are excluded in a roll-up sum for this column but the equal values are included in total sum
+
+<br>
+
+---
+
+## Window Function Examples
+
+
+### Average Volumes
+First we need to calculate the weekly volume for the previous 7 days - we can use our `RANGE` mode in combination with the actual day range values to accomplish this.
+
+Instead of just using integers like we were using for our previous simple dataset - we are able to use day ranges for our window function calculation also.
+
+Following this we will generate a flag for each row comparing the actual volume to the average calculated volume.
+
+The query below will cover points 1 and 2:
+
+```sql
+WITH window_calculations AS (
+SELECT
+  market_date,
+  volume,
+  AVG(volume) OVER (
+    ORDER BY market_date
+    RANGE BETWEEN '7 DAYS' PRECEDING and '1 DAY' PRECEDING
+  ) AS past_weekly_avg_volume
+FROM updated_daily_btc
+)
+SELECT
+  market_date,
+  volume,
+  CASE
+    WHEN volume > past_weekly_avg_volume THEN 1
+    ELSE 0
+    END AS volume_flag
+FROM window_calculations
+ORDER BY market_date DESC
+LIMIT 10;
+```
+
+### High Volume Weeks
+Next - let’s tackle the week percentage calculations for parts 3 and 4 in a single go.
+
+We are yet to dive deeper into date calculations - but you can simply use DATE_TRUNC('week', <date-column>)::DATE to generate the prior Monday’s date.
+
+If we then aggregate our dataset - we can then generate the distributions using the same SUM(COUNT*) OVER () trick we’ve used before to calculate proportions previously:
+
+```sql
+WITH window_calculations AS (
+  SELECT
+    market_date,
+    volume,
+    AVG(volume) OVER (
+      ORDER BY market_date
+      RANGE BETWEEN '7 DAYS' PRECEDING and '1 DAY' PRECEDING
+    ) AS past_weekly_avg_volume
+  FROM updated_daily_btc
+),
+-- generate the date
+date_calculations AS (
+  SELECT
+    market_date,
+    DATE_TRUNC('week', market_date)::DATE AS start_of_week,
+    volume,
+    CASE
+      WHEN volume > past_weekly_avg_volume THEN 1
+      ELSE 0
+      END AS volume_flag
+  FROM window_calculations
+),
+-- aggregate the metrics and calculate a percentage
+aggregated_weeks AS (
+  SELECT
+    start_of_week,
+    SUM(volume_flag) AS weekly_high_volume_days
+  FROM date_calculations
+  GROUP BY 1
+)
+-- finally calculate the percentage
+SELECT
+  weekly_high_volume_days,
+  ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentage_of_weeks
+FROM aggregated_weeks
+GROUP BY 1
+ORDER BY 1;
+```
+
+### Breakdown By Year
+When do these higher volume weeks of 5-7 days occur by year prior to 2021?
+
+Can you provide some additional insight and/or reasons why this might be the case?
+
+```sql
+WITH window_calculations AS (
+  SELECT
+    market_date,
+    volume,
+    AVG(volume) OVER (
+      ORDER BY market_date
+      RANGE BETWEEN '7 DAYS' PRECEDING and '1 DAY' PRECEDING
+    ) AS past_weekly_avg_volume
+  FROM updated_daily_btc
+),
+-- generate the date
+date_calculations AS (
+  SELECT
+    market_date,
+    DATE_TRUNC('week', market_date)::DATE AS start_of_week,
+    volume,
+    CASE
+      WHEN volume > past_weekly_avg_volume THEN 1
+      ELSE 0
+      END AS volume_flag
+  FROM window_calculations
+),
+-- aggregate the metrics and calculate a percentage
+aggregated_weeks AS (
+  SELECT
+    start_of_week,
+    SUM(volume_flag) AS weekly_high_volume_days
+  FROM date_calculations
+  GROUP BY 1
+)
+-- finally calculate the percentage by year
+SELECT
+  -- here we demonstrate how to use EXTRACT as an alternative to DATE_TRUNC
+  EXTRACT(YEAR FROM start_of_week) AS market_year,
+  COUNT(*) AS high_volume_weeks,
+  ROUND(100 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentage_of_total
+FROM aggregated_weeks
+WHERE weekly_high_volume_days >= 5
+AND start_of_week < '2021-01-01'::DATE
+GROUP BY 1
+ORDER BY 1;
+```
+
+### Moving Averages
+For the next exercise - we will be calculating metrics not just a single window function but multiple in the same query.
+
+For the following time windows: 14, 28, 60, 150 days - calculate the following metrics for the close_price column:
+
+1. Moving average
+2. Moving standard deviation
+3. The maximum and minimum values
+
+Additionally round all metrics to to the nearest whole number.
+
+```sql
+SELECT
+  market_date,
+  close_price,
+  -- averages
+  ROUND(AVG(close_price) OVER w_14) AS avg_14,
+  ROUND(AVG(close_price) OVER w_28) AS avg_28,
+  ROUND(AVG(close_price) OVER w_60) AS avg_60,
+  ROUND(AVG(close_price) OVER w_150) AS avg_150,
+  -- standard deviation
+  ROUND(STDDEV(close_price) OVER w_14) AS std_14,
+  ROUND(STDDEV(close_price) OVER w_28) AS std_28,
+  ROUND(STDDEV(close_price) OVER w_60) AS std_60,
+  ROUND(STDDEV(close_price) OVER w_150) AS std_150,
+  -- max
+  ROUND(MAX(close_price) OVER w_14) AS max_14,
+  ROUND(MAX(close_price) OVER w_28) AS max_28,
+  ROUND(MAX(close_price) OVER w_60) AS max_60,
+  ROUND(MAX(close_price) OVER w_150) AS max_150,
+  -- min
+  ROUND(MIN(close_price) OVER w_14) AS min_14,
+  ROUND(MIN(close_price) OVER w_28) AS min_28,
+  ROUND(MIN(close_price) OVER w_60) AS min_60,
+  ROUND(MIN(close_price) OVER w_150) AS min_150
+FROM updated_daily_btc
+WINDOW
+  w_14 AS (ORDER BY MARKET_DATE RANGE BETWEEN '14 DAYS' PRECEDING AND '1 DAY' PRECEDING),
+  w_28 AS (ORDER BY MARKET_DATE RANGE BETWEEN '28 DAYS' PRECEDING AND '1 DAY' PRECEDING),
+  w_60 AS (ORDER BY MARKET_DATE RANGE BETWEEN '60 DAYS' PRECEDING AND '1 DAY' PRECEDING),
+  w_150 AS (ORDER BY MARKET_DATE RANGE BETWEEN '150 DAYS' PRECEDING AND '1 DAY' PRECEDING)
+ORDER BY market_date DESC
+LIMIT 10;
+```

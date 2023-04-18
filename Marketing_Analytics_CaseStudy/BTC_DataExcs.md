@@ -167,6 +167,24 @@ FROM low_open_difference
 WHERE low_price_percent_diff >= 10;
 
 SELECT * FROM low_open_difference LIMIT 5;
+
+-- CTE approach w/percentage
+WITH cte AS (
+SELECT
+SUM(
+CASE
+WHEN low_price < 0.9 * open_price THEN 1
+ELSE 0
+END
+) AS low_days,
+COUNT(*) AS total_days
+FROM trading.daily_btc
+WHERE volume IS NOT NULL
+)
+SELECT
+low_days,
+ROUND(100 * low_days / total_days) AS _percentage
+FROM cte;
 ```
 |count|
 |----|
@@ -267,6 +285,25 @@ SELECT
   -- had to cast one of the two count total (variables above) as numeric to get the division to work
   ROUND(CAST(higher_close_total_days AS numeric) / total_btc_row_records * 100, 2) AS higher_close_percentage
 FROM higher_close_open;
+
+-- CTE Solution from exercsie quiz
+WITH cte AS (
+SELECT
+SUM(
+CASE
+WHEN close_price > open_price THEN 1
+ELSE 0
+END
+) AS high_days,
+COUNT(*) AS total_days
+FROM trading.daily_btc
+WHERE volume IS NOT NULL
+)
+SELECT
+high_days,
+-- INTEGER FLOOR DIVISION!!!!!!
+ROUND(100 * high_days / total_days::NUMERIC) AS _percentage
+FROM cte;
 ```
 |higher_close_total_days|total_btc_row_records|higher_close_percentage|higher_close_percentage_str|
 |------|------|-------|----|

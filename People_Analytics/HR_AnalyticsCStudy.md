@@ -2115,4 +2115,366 @@ FROM decrease_cte;
 |total_churned|total_churned_decrease_count|churned_pay_decrease_percentage_in_last_5_events|
 |---|-----|----|
 |59910|14328|24|
-11. How many current employees have the equal longest overall time in their current positions (not in years)?
+
+
+<br>
+
+### **Management Analysis**
+The HR Analytica team also want to perform a management analysis and need answers for these questions:
+
+1. How many managers are there currently in the company?
+```sql
+SELECT COUNT(DISTINCT(manager)) FROM mv_employees.current_employee_snapshot;
+
+-- either works
+SELECT
+  COUNT(*) AS current_manager_count
+FROM mv_employees.title
+WHERE
+  to_date = '9999-01-01' AND
+  title = 'Manager';
+```
+|current_manager_count|
+|----|
+|9|
+2. How many employees have ever been a manager?
+```sql
+SELECT
+  COUNT(DISTINCT employee_id) AS total_manager_count
+FROM mv_employees.title
+WHERE
+  title = 'Manager';
+
+SELECT
+  COUNT(DISTINCT(employee_id))
+FROM mv_employees.historic_employee_records
+WHERE title LIKE '%Manager%';
+```
+|count|
+|----|
+|24|
+3. On average - how long did it take for an employee to first become a manager from their the date they were originally hired?
+```sql
+WITH employee_id_managers AS (
+SELECT * 
+FROM mv_employees.title
+WHERE title LIKE '%Manager%'
+),
+hire_date AS (
+SELECT 
+  employee_id,
+  MIN(from_date) AS hire_date
+FROM mv_employees.title
+WHERE employee_id in (SELECT employee_id FROM employee_id_managers)
+GROUP BY employee_id
+),
+manager_date AS (
+SELECT
+  employee_id,
+  from_date AS manager_date
+FROM mv_employees.title
+WHERE title = 'Manager'
+),
+employee_hire_and_manager_date AS (
+SELECT *
+FROM hire_date AS hd
+  INNER JOIN manager_date 
+    USING(employee_id)
+),
+date_diffs AS (
+SELECT
+  employee_id,
+  hire_date,
+  manager_date,
+  -- By default returns days
+  manager_date::DATE - hire_date::DATE AS days_difference_to_manager
+FROM employee_hire_and_manager_date
+ORDER BY days_difference_to_manager DESC
+)
+SELECT 
+  ROUND(AVG(days_difference_to_manager)) AS avg_days_to_manager
+FROM date_diffs;
+
+-- Another path
+WITH manager_cte AS (
+  SELECT
+    employee_id,
+    MIN(from_date) AS first_appointment_date
+  FROM mv_employees.title
+  WHERE title = 'Manager'
+  GROUP BY employee_id
+)
+SELECT
+  AVG(
+    DATE_PART(
+      'DAY',
+      manager_cte.first_appointment_date::TIMESTAMP -
+        employee.hire_date::TIMESTAMP
+    )
+  ) AS average_days_till_management
+FROM mv_employees.employee
+INNER JOIN manager_cte
+  ON employee.id = manager_cte.employee_id
+
+```
+|avg_days_to_manager|
+|-----|
+|909|
+4. What was the most common titles that managers had just before before they became a manager?
+```sql
+WITH previous_title_CTE AS (
+  SELECT
+    employee_id,
+    from_date,
+    title,
+    LAG(title) OVER (
+      PARTITION BY employee_id
+      ORDER BY from_date
+    ) AS previous_title
+  FROM mv_employees.title
+)
+SELECT 
+  previous_title,
+  COUNT(*) AS manager_count
+FROM previous_title_CTE
+WHERE 
+  title = 'Manager' AND 
+  previous_title IS NOT NULL
+GROUP BY previous_title
+ORDER BY manager_count DESC;
+```
+|previous_title|manager_count|
+|----|----|
+|Senior Staff|7|
+|Technique Leader|4|
+|Senior Engineer|3|
+|Staff|1|
+5. How many managers were first hired by the company as a manager?
+```sql
+WITH employee_id_managers AS (
+SELECT * 
+FROM mv_employees.title
+WHERE title LIKE '%Manager%'
+),
+hire_date AS (
+SELECT 
+  employee_id,
+  MIN(from_date) AS hire_date
+FROM mv_employees.title
+WHERE employee_id in (SELECT employee_id FROM employee_id_managers)
+GROUP BY employee_id
+),
+manager_date AS (
+SELECT
+  employee_id,
+  from_date AS manager_date
+FROM mv_employees.title
+WHERE title = 'Manager'
+),
+employee_hire_and_manager_date AS (
+SELECT *
+FROM hire_date AS hd
+  INNER JOIN manager_date 
+    USING(employee_id)
+),
+date_diffs AS (
+SELECT
+  employee_id,
+  hire_date,
+  manager_date,
+  -- By default returns days
+  manager_date::DATE - hire_date::DATE AS days_difference_to_manager
+FROM employee_hire_and_manager_date
+ORDER BY days_difference_to_manager DESC
+)
+-- Simply see how many managers starte
+SELECT COUNT(*) 
+FROM date_diffs
+WHERE days_difference_to_manager = 0;
+
+-- Can use the LAG and null check too
+WITH previous_title_cte AS (
+  SELECT
+    employee_id,
+    from_date,
+    title,
+    LAG(title) OVER (
+      PARTITION BY employee_id
+      ORDER BY from_date
+    ) AS previous_title
+  FROM mv_employees.title
+)
+SELECT
+  COUNT(*) AS manager_count
+FROM previous_title_cte
+WHERE
+  title = 'Manager' AND
+  previous_title IS NULL; 
+```
+|count|
+|---|
+|9|
+* Using a previous query here 
+6. On average - how much more do current managers make on average compared to all other employees rounded to the nearest dollar?
+```sql
+WITH manager_salary AS (
+SELECT 
+  ROUND(AVG(salary)) AS manager_salary
+FROM mv_employees.current_employee_snapshot
+WHERE title = 'Manager'
+),
+non_manager_salary AS (
+SELECT
+  ROUND(AVG(salary)) AS non_manager_salary
+FROM mv_employees.current_employee_snapshot
+),
+combined AS (
+SELECT
+  (SELECT manager_salary FROM manager_salary) AS man_salary,
+  (SELECT non_manager_salary FROM non_manager_salary) AS non_man_salary
+)
+SELECT
+  man_salary,
+  non_man_salary,
+  man_salary::numeric - non_man_salary AS manager_avg_difference
+FROM combined;
+
+-- Another approach
+SELECT
+  average_manager_salary - average_non_manager_salary AS average_difference,
+  average_manager_salary - sal as lol
+FROM (
+  SELECT
+    AVG(
+      CASE WHEN title = 'Manager' THEN salary
+      ELSE NULL  -- DO NOT USE 0 HERE!!!!!!
+      END
+      ) AS average_manager_salary,
+    AVG(
+      CASE WHEN title != 'Manager' THEN salary
+      ELSE NULL  -- DO NOT USE 0 HERE!!!!!!
+      END
+      ) AS average_non_manager_salary,
+    AVG(salary) AS sal
+  FROM mv_employees.current_employee_snapshot
+) subquery;
+```
+|man_salary|non_man_salary|manager_avg_difference|
+|----|----|----|
+|77724|72012|5712|
+
+7. Which current manager has the most employees in their department?
+```sql
+WITH current_managers AS (
+SELECT 
+  employee_id
+FROM mv_employees.title
+WHERE 
+  title LIKE '%Manager%'
+  AND to_date > CURRENT_DATE
+),
+departments AS (
+SELECT
+  employee_id,
+  manager,
+  department
+FROM current_managers cm 
+INNER JOIN mv_employees.current_employee_snapshot cem 
+  USING(employee_id)
+),
+department_counts AS (
+SELECT
+  department,
+  COUNT(*) AS department_count
+FROM mv_employees.current_employee_snapshot 
+GROUP BY department
+)
+SELECT * 
+FROM departments
+INNER JOIN department_counts
+  USING(department)
+ORDER BY department_counts.department_count DESC;
+
+
+-- Much easier just to group by the manager then department too
+SELECT
+  manager,
+  department,
+  COUNT(*) AS employee_count
+FROM mv_employees.current_employee_snapshot
+GROUP BY
+  manager,
+  department
+ORDER BY employee_count DESC;
+```
+|department|employee_id|manager|department_count|
+|----|----|----|-----|
+|Development|110567|Leon DasSarma|61386|
+|Production|110420|Oscar Ghazalie|53304|
+|Sales|111133|Hauke Zhang|37701|
+|Customer Service|111939|Yuchang Weedman|17569|
+|Research|111534|Hilary Kambi|15441|
+|Marketing|110039|Vishwani Minakawa|14842|
+|Quality Management|110854|Dung Pesch|14546|
+|Human Resources|110228|Karsten Sigstam|12898|
+|Finance|110114|Isamu Legleitner|12437|
+
+8. What is the difference in employee count between the 3rd and 4th ranking departments by size?
+```sql
+WITH dept_counts AS (
+SELECT
+  manager,
+  department,
+  COUNT(*) AS employee_count
+FROM mv_employees.current_employee_snapshot
+GROUP BY
+  manager,
+  department
+ORDER BY employee_count DESC
+)
+SELECT
+  manager,
+  department,
+  employee_count,
+  employee_count - LEAD(employee_count) OVER (ORDER BY employee_count DESC) AS nearst_department_difference
+FROM dept_counts;
+
+-- Another Way (I Like this one more)
+WITH employee_count_cte AS (
+SELECT
+  department,
+  COUNT(*) AS employee_count
+FROM mv_employees.current_employee_snapshot
+GROUP BY
+  department
+),
+window_function_cte AS (
+SELECT
+  department,
+  employee_count,
+  LEAD(employee_count) OVER (ORDER BY employee_count DESC),
+  RANK() OVER (ORDER BY employee_count DESC) AS department_rank,
+  employee_count - LEAD(employee_count) OVER (ORDER BY employee_count DESC) AS difference
+FROM employee_count_cte
+)
+SELECT *
+FROM window_function_cte
+WHERE department_rank = 3;
+```
+|manager|department|employee_count|nearst_department_difference|
+|----|-----|-----|-----|
+|Leon DasSarma|Development|61386|8082|
+|Oscar Ghazalie|Production|53304|15603|
+|Hauke Zhang|Sales|37701|20132|
+|Yuchang Weedman|Customer Service|17569|2128|
+|Hilary Kambil|Research|15441|599|
+|Vishwani Minakawa|Marketing|14842|296|
+|Dung Pesch|Quality Management|14546|1648|
+|Karsten Sigstam|Human Resources|12898|461|
+|Isamu Legleitner|Finance|12437|null|
+
+<br>
+
+|department|employee_count|lead|department_rank|difference|
+|-----|-----|-----|-----|-----|
+|Sales|37701|17569|3|20132|

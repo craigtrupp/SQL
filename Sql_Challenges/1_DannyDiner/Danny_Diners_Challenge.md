@@ -23,7 +23,7 @@ Danny has shared with you 3 key datasets for this case study:
 * menu
 * members
 
-![Entity Relationship](images/DDiner_1_ERD.png)
+![Entity Relationship](Images/DDiner_1_ERD.png)
 
 <br>
 
@@ -221,6 +221,26 @@ ORDER BY customer_top_menu_item_purchases DESC;
 
 <br>
 
+* If using a basic `COUNT` and simply looking for total customer purchases and not broken down by each particular customer (aka total count of the most popular item for all customers)
+
+```sql
+SELECT 
+  m.product_name AS product,
+  COUNT(*) AS total_product_purchases
+FROM dannys_diner.sales s 
+INNER JOIN dannys_diner.menu m
+  USING(product_id)
+GROUP BY product 
+ORDER BY total_product_purchases DESC;
+```
+|product|total_product_purchases|
+|----|----|
+|ramen|8|
+|curry|4|
+|sushi|3|
+
+<br>
+
 5. Which item was the most popular for each customer?
 ```sql
 SELECT
@@ -278,6 +298,41 @@ ORDER BY customer_id;
 |B|3|ramen|1|2|
 |B|2|curry|1|2|
 |C|3|ramen|1|3|
+
+<br>
+
+* Note here on provided answer (similar to mine just a bit less clutter)
+```sql
+WITH customer_cte AS (
+  SELECT
+    sales.customer_id,
+    menu.product_name,
+    COUNT(sales.*) AS item_quantity,
+    -- you may want to check this!
+    DENSE_RANK() OVER (
+      PARTITION BY sales.customer_id
+      ORDER BY COUNT(*) DESC
+    ) AS item_rank
+  FROM dannys_diner.sales
+  INNER JOIN dannys_diner.menu
+  USING(product_id)
+  GROUP BY
+    sales.customer_id, menu.product_name
+)
+SELECT
+  customer_id,
+  product_name,
+  item_quantity
+FROM customer_cte
+WHERE item_rank = 1;
+```
+|customer_id|product_name|item_quantity|
+|-----|-----|-----|
+|A|ramen|3|
+|B|sushi|2|
+|B|curry|2|
+|B|ramen|2|
+|C|ramen|3|
 
 <br>
 
@@ -343,6 +398,39 @@ WHERE new_member_purchase_rankings = 1;
 
 <br>
 
+* Another approach
+```sql
+WITH member_sales_cte AS (
+  SELECT
+    sales.customer_id,
+    sales.order_date,
+    menu.product_name,
+    RANK() OVER (
+      PARTITION BY sales.customer_id
+      ORDER BY sales.order_date
+    ) AS order__rank
+  FROM dannys_diner.sales
+  INNER JOIN dannys_diner.menu
+    ON sales.product_id = menu.product_id
+  INNER JOIN dannys_diner.members
+    ON sales.customer_id = members.customer_id
+  WHERE
+    sales.order_date >= members.join_date::DATE
+)
+SELECT DISTINCT
+  customer_id,
+  order_date,
+  product_name
+FROM member_sales_cte
+WHERE order__rank = 1
+```
+|customer_id|order_date|product_name|
+|-----|-----|-----|
+|A|2021-01-07|curry|
+|B|2021-01-11|sushi|
+
+<br>
+
 7. Which item was purchased just before the customer became a member?
 ```sql
 -- Which item was purchased just before the customer became a member
@@ -397,6 +485,31 @@ ORDER BY sales_total_pre_member_join_date DESC;
 |-----|-----|------|
 |A|3|36|
 |B|3|34|
+
+<br>
+
+* Here is the adjusted question for `Question #8`
+  - What is the number of unique menu items and total amount spent for each member before they became a member?
+
+```sql
+-- What is the number of unique menu items and total amount spent for each member before they became a member?
+SELECT 
+  customer_id,
+  COUNT(DISTINCT product_name),
+  SUM(price)
+FROM dannys_diner.sales sl 
+  INNER JOIN dannys_diner.menu mn 
+  USING(product_id)
+  INNER JOIN dannys_diner.members mb 
+  USING(customer_id)
+WHERE sl.order_date < mb.join_date
+GROUP BY customer_id
+ORDER BY customer_id;
+```
+|customer_id|count|sum|
+|----|----|-----|
+|A|2|25|
+|B|2|40|
 
 <br>
 
@@ -457,6 +570,35 @@ ORDER BY customer_total_sales_points DESC;
 ```
 |customer_id|customer_total_sales_points|
 |----|-----|
+|B|940|
+|A|860|
+|C|360|
+
+<br>
+
+* Consolidate the `CASE` statement to have the sum included
+
+```sql
+-- If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
+SELECT
+  sales.customer_id,
+  -- Captrue SUM of points grouped by customer with different product types
+  SUM(
+    CASE
+      WHEN menu.product_name = 'sushi' 
+        THEN 2 * (10 * menu.price)
+      ELSE 10 * menu.price
+    END
+  )
+  AS points
+FROM dannys_diner.sales
+LEFT JOIN dannys_diner.menu
+  ON sales.product_id = menu.product_id
+GROUP BY customer_id
+ORDER BY points DESC;
+```
+|customer_id|points|
+|-----|-----|
 |B|940|
 |A|860|
 |C|360|
@@ -649,6 +791,29 @@ ORDER BY customer_id, order_date, product_name;
 
 <br>
 
+* Quicker approach
+```sql
+SELECT
+  sales.customer_id,
+  sales.order_date,
+  members.join_date,
+  menu.product_name,
+  menu.price,
+  CASE WHEN sales.order_date >= members.join_date::DATE THEN 'Y'
+    ELSE 'N'
+  END AS member
+FROM dannys_diner.sales
+INNER JOIN dannys_diner.menu
+  ON sales.product_id = menu.product_id
+-- still need customer c even though not a member
+LEFT JOIN dannys_diner.members
+  ON sales.customer_id = members.customer_id
+ORDER BY
+  sales.customer_id, sales.order_date;
+```
+
+<br>
+
 **Rank All The Things**
 
 2. Danny also requires further information about the `ranking` of customer products, but he purposely does not need the ranking for non-member purchases so he expects null ranking values for the records when customers are not yet part of the loyalty program.
@@ -743,7 +908,7 @@ ORDER BY customer_id, order_date, product_name;
 |C|2021-01-01|ramen|12|N|null|
 |C|2021-01-07|ramen|12|N|null|
 
+* Most important note here is the secondary argument for the PARTITION by here when the ranking function runs for a member
+
 <br>
 
-### `Quick Review`
-* So above are my answers, will add the course instructor's answers for comparison on my next commit

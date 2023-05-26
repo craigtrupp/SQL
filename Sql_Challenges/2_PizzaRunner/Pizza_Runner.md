@@ -164,7 +164,8 @@ Before you start writing your SQL queries however - you might want to investigat
 
 <br>
 
-`A. Pizza Metrics` - My approaches
+#### `A - Pizza Metrics` 
+
 
 **1.** How many pizzas were ordered?
 ```sql
@@ -625,7 +626,7 @@ SELECT pizza_count FROM cte_ranked_orders WHERE count_rank = 1;
 
 <br>
 
-`B Runner and Customer Experience`
+#### `B - Runner and Customer Experience`
 
 **1.** How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)
 ```sql
@@ -710,3 +711,426 @@ FROM runner_avg_pickup_times;
 
 <br>
 
+**3.** Is there any relationship between the number of pizzas and how long the order takes to prepare?
+* Desired output table would contain the order_id, the minutes before the pizza(s) was picked up for an order and how many pizzas were in the order
+
+|order_id|pickup_mins|pizza_count|
+|----|----|-----|
+|1|10|1|
+|3|21|2|
+|4|29|3|
+
+```sql
+SELECT
+  DISTINCT ro_1.order_id,
+  DATE_PART('minutes', AGE(ro_1.pickup_time::timestamp, co_2.order_time))::INTEGER AS pickup_minutes,
+  -- despite just getting 1 row for any orders with multiple rows we can still count the total orders from our joined customer orders table
+  COUNT(co_2.order_id) AS pizza_count
+FROM pizza_runner.runner_orders ro_1
+INNER JOIN pizza_runner.customer_orders co_2
+  USING(order_id)
+WHERE 
+  ro_1.pickup_time != 'null' OR ro_1.pickup_time IS NULL
+GROUP BY order_id, pickup_minutes
+ORDER BY pickup_minutes;
+```
+|order_id|pickup_minutes|pizza_count|
+|----|-----|-----|
+|1|10|1|
+|2|10|1|
+|5|10|1|
+|7|10|1|
+|10|15|2|
+|8|20|1|
+|3|21|2|
+|4|29|3|
+
+<br>
+
+**4.** What was the average distance travelled for each customer?
+* The distance field is a string and we need to use the `UNNEST` function along with a `REGEXP_MATCH` to extract any digits from the column to then CAST as an INT/FLOAT to get a numerical average
+```sql
+-- What was the average distance travelled for each customer?
+WITH pickup_details AS (
+SELECT 
+  DISTINCT ro.order_id,
+  ro.runner_id,
+  ro.pickup_time,
+  co.customer_id,
+  ro.distance,
+  ro.duration
+FROM pizza_runner.runner_orders ro
+INNER JOIN pizza_runner.customer_orders co 
+  USING(order_id)
+WHERE ro.pickup_time != 'null' OR ro.pickup_time IS NULL
+ORDER BY order_id
+)
+SELECT
+  customer_id,
+  distance,
+  -- Match with regexp for start of distance "^" followed by 1 or more digits, capture group of a .  with * zero or more times followed by 0 or more digits
+  UNNEST(regexp_match(distance, '^\d+[.]*\d*'))::FLOAT
+FROM pickup_details
+```
+|customer_id|distance|unnest|
+|----|----|-----|
+|101|20km|20|
+|101|20km|20|
+|102|13.4km|13.4|
+|103|23.4|23.4|
+|104|10|10|
+|105|25km|25|
+|102|23.4 km|23.4|
+|104|10km|10|
+
+* Now to perform (can set the value of the numeric distance in the CTE)
+```sql
+WITH pickup_details AS (
+SELECT 
+  DISTINCT ro.order_id,
+  ro.runner_id,
+  ro.pickup_time,
+  co.customer_id,
+  ro.distance,
+  UNNEST(regexp_match(distance, '^\d+[.]*\d*'))::FLOAT AS numeric_distance,
+  UNNEST(REGEXP_MATCH(ro.distance, '(^[0-9,.]+)'))::NUMERIC AS distance_rgp,
+  ro.duration
+FROM pizza_runner.runner_orders ro
+INNER JOIN pizza_runner.customer_orders co 
+  USING(order_id)
+WHERE ro.pickup_time != 'null' OR ro.pickup_time IS NULL
+ORDER BY order_id
+)
+SELECT
+  customer_id,
+  AVG(numeric_distance) as cust_avg_distance_travelled,
+  ROUND(AVG(distance_rgp), 1) as cust_avg_rgxp_provided
+FROM pickup_details
+GROUP BY customer_id
+ORDER BY customer_id;
+```
+|customer_id|cust_avg_distance_travelled|cust_avg_rgxp_provided|
+|-----|-----|-----|
+|101|20|20.0|
+|102|18.4|18.4|
+|103|23.4|23.4|
+|104|10|10.0|
+|105|25|25.0|
+
+<br>
+
+**5.** What was the difference between the longest and shortest delivery times for all orders?
+* Think a quick RANK function with a CTE should get us there 
+```sql
+-- What was the difference between the longest and shortest delivery times for all orders? -- can just filter out a null pickup_time 
+WITH delivery_times_ranked AS (
+SELECT 
+  UNNEST(REGEXP_MATCH(duration, '^[0-9]+'))::INTEGER AS duration_num,
+  duration,
+  RANK() OVER (
+    ORDER BY UNNEST(REGEXP_MATCH(duration, '^[0-9]+'))::INTEGER DESC
+  ) AS deliverly_length_rankings
+FROM pizza_runner.runner_orders
+WHERE pickup_time != 'null' OR pickup_time IS null
+)
+SELECT * FROM delivery_times_ranked;
+```
+|duration_num|duration|deliverly_length_rankings|
+|----|----|----|
+|40|40|1|
+|32|32 minutes|2|
+|27|27 minutes|3|
+|25|25mins|4|
+|20|20 mins|5|
+|15|15|6|
+|15|15 minute|6|
+|10|10minutes|8|
+
+* Now this is a bit unnecessary but would be a nice template for ranking a value for its' **numeric** values that is in a string/varchar type fields that is extracted with the regexp_match
+
+```sql
+WITH delivery_times_ranked AS (
+SELECT 
+  UNNEST(REGEXP_MATCH(duration, '^[0-9]+'))::INTEGER AS duration_num,
+  duration,
+  RANK() OVER (
+    ORDER BY UNNEST(REGEXP_MATCH(duration, '^[0-9]+'))::INTEGER DESC
+  ) AS deliverly_length_rankings
+FROM pizza_runner.runner_orders
+WHERE pickup_time != 'null' OR pickup_time IS null
+)
+SELECT 
+  MAX(duration_num) - MIN(duration_num) AS max_delivery_difference
+FROM delivery_times_ranked;
+```
+|max_delivery_difference|
+|-----|
+|30|
+
+<br>
+
+**6.** What was the average speed for each runner for each delivery and do you notice any trend for these values?
+```sql
+WITH pickup_details AS (
+SELECT
+  runner_id,
+  order_id,
+  EXTRACT('hour' FROM pickup_time::timestamp) AS hour_pickup,
+  pickup_time,
+  distance,
+  UNNEST(REGEXP_MATCH(distance, '^[0-9, .]*'))::NUMERIC AS numeric_distance,
+  duration,
+  UNNEST(REGEXP_MATCH(duration, '^\d+'))::NUMERIC AS duration_mins
+FROM pizza_runner.runner_orders
+WHERE pickup_time != 'null'
+)
+SELECT
+  runner_id,
+  order_id,
+  hour_pickup,
+  numeric_distance,
+  ROUND(60 / duration_mins::decimal, 1) AS distance_multiplier,
+  -- Double precision type returned, must cast to a numeric after performing operation prior to round accepting
+  ROUND((numeric_distance * (60 / duration_mins::DECIMAL))::NUMERIC, 1) AS avg_speed,
+  CONCAT(ROUND((numeric_distance * (60 / duration_mins::DECIMAL))::NUMERIC, 1), ' km/hour') AS avg_speed_delivery
+FROM pickup_details;
+```
+|runner_id|order_id|hour_pickup|numeric_distance|distance_multiplier|avg_speed|avg_speed_delivery|
+|-----|-----|-----|-----|----|-----|-----|
+|1|1|18|20|1.9|37.5|37.5 km/hour|
+|1|2|19|20|2.2|44.4|44.4 km/hour|
+|1|3|0|13.4|3.0|40.2|40.2 km/hour|
+|2|4|13|23.4|1.5|35.1|35.1 km/hour|
+|3|5|21|10|4.0|40.0|40.0 km/hour|
+|2|7|21|25|2.4|60.0|60.0 km/hour|
+|2|8|0|23.4|4.0|93.6|93.6 km/hour|
+|1|10|18|10|6.0|60.0|60.0 km/hour|
+
+<br>
+
+**7.** What is the successful delivery percentage for each runner?
+* Another SUM based on the CASE for a successful delivery against all deliveries
+```sql
+-- What is the successful delivery percentage for each runner?
+WITH runner_delivery_counts AS (
+SELECT 
+  runner_id,
+  SUM(
+  CASE 
+    WHEN pickup_time != 'null'
+    THEN 1 
+    ELSE 0 
+  END) AS successful_deliveries,
+  COUNT(*) AS total_runner_orders
+FROM pizza_runner.runner_orders
+GROUP BY runner_id
+)
+-- Select all from CTE and perform successful percentage
+SELECT 
+  *,
+  ROUND(100 * (successful_deliveries::NUMERIC / total_runner_orders), 1) AS success_percentage
+FROM runner_delivery_counts;
+```
+|runner_id|successful_deliveries|total_runner_orders|success_percentage|
+|-----|-----|-----|-----|
+|3|1|2|50.0|
+|2|3|4|75.0|
+|1|4|4|100.0|
+
+* If looking to consolidate and not use a CTE
+```sql
+SELECT
+  runner_id,
+  ROUND(
+    100 * SUM(CASE WHEN pickup_time != 'null' THEN 1 ELSE 0 END) /
+    COUNT(*)
+  ,0) AS success_percentage
+FROM pizza_runner.runner_orders
+GROUP BY runner_id
+ORDER BY runner_id;
+```
+
+---
+
+<br>
+
+#### `C. Ingredient Optimization`
+
+**1.** What are the standard ingredients for each pizza?
+```sql
+SELECT
+  pizza_id,
+  REGEXP_SPLIT_TO_TABLE(toppings, '[,\s]+')::INTEGER AS topping_id
+FROM pizza_runner.pizza_recipes
+```
+|pizza_id|topping_id|
+|----|---|
+|1|1|
+|1|2|
+|1|3|
+|1|4|
+|1|5|
+|1|6|
+|1|8|
+|1|10|
+|2|4|
+|2|6|
+|2|7|
+|2|9|
+|2|11|
+|2|1|
+
+* Using `REGEXP_SPLIT_TO_TABLE`, we can take the `toppings` column values (see below and) assign to a table used to aggregate a string for the toppings
+* Following the table assignment for each topping to pizza_id, we can join on the `toppings` table which has the name of the toppings. Will just need to group by the pizza_id and use the `STRING_AGG` to combine all topping names into one returned table row
+
+|pizza_id|toppings|
+|----|----|
+|1|1, 2, 3, 4, 5, 6, 8, 10|
+|2|4, 6, 7, 9, 11, 12|
+
+
+```sql
+WITH cte_split_pizza_names AS (
+SELECT
+  pizza_id,
+  -- cast as integer in order to join on the pizza_toppings to get the topping_name
+  REGEXP_SPLIT_TO_TABLE(toppings, '[,\s]+')::INTEGER AS topping_id
+FROM pizza_runner.pizza_recipes
+)
+SELECT
+  pizza_id,
+  STRING_AGG(pizza_text_toppings.topping_name::TEXT, ', ')
+FROM cte_split_pizza_names AS pizza_numeric_toppings
+INNER JOIN pizza_runner.pizza_toppings AS pizza_text_toppings 
+  USING(topping_id)
+GROUP BY pizza_id
+ORDER BY pizza_id
+-- 4, 6, 7, 9, 11, 12
+```
+|pizza_id|string_agg|
+|-----|-----|
+|1|Bacon, BBQ Sauce, Beef, Cheese, Chicken, Mushrooms, Pepperoni, Salami|
+|2|Cheese, Mushrooms, Onions, Peppers, Tomatoes, Tomato Sauce|
+
+<br>
+
+**2.** What was the most commonly added extra?
+```sql
+-- What was the most commonly added extra?
+WITH order_extras AS (
+SELECT 
+  order_id,
+  REGEXP_SPLIT_TO_TABLE(extras, '[, \s]+')::INTEGER AS order_extras
+FROM pizza_runner.customer_orders
+WHERE LENGTH(extras) >= 1 AND extras != 'null'
+), 
+extras_order_count AS (
+SELECT
+  order_extras,
+  COUNT(*) AS extra_order_count
+FROM order_extras
+GROUP BY order_extras
+)
+SELECT 
+  pt.topping_name,
+  pt.topping_id,
+  eoc.extra_order_count
+FROM extras_order_count eoc 
+INNER JOIN pizza_runner.pizza_toppings pt 
+  ON eoc.order_extras = pt.topping_id
+ORDER BY eoc.extra_order_count DESC
+```
+|topping_name|topping_id|extra_order_count|
+|-----|-----|-----|
+|Bacon|1|4|
+|Cheese|4|1|
+|Chicken|5|1|
+
+<br>
+
+**3.** What was the most common exclusion?
+```sql
+-- Most Common exclusions
+WITH cte_exclusions AS (
+SELECT
+  REGEXP_SPLIT_TO_TABLE(exclusions, '[,\s]+')::INTEGER AS topping_id
+FROM pizza_runner.customer_orders
+WHERE exclusions IS NOT NULL AND exclusions NOT IN ('null', '')
+)
+SELECT
+  topping_name,
+  COUNT(*) AS exclusions_count
+FROM cte_exclusions
+INNER JOIN pizza_runner.pizza_toppings
+  ON cte_exclusions.topping_id = pizza_toppings.topping_id
+GROUP BY topping_name
+ORDER BY exclusions_count DESC;
+```
+|topping_name|exclusions_count|
+|----|-----|
+|Cheese|4|
+|Mushrooms|1|
+|BBQ Sauce|1|
+
+<br>
+
+**4.** Generate an order item for each record in the customers_orders table in the format of one of the following: + Meat Lovers + Meat Lovers - Exclude Beef + Meat Lovers - Extra Bacon + Meat Lovers - Exclude Cheese, Bacon - Extra Mushroom, Peppers
+
+* Here's an initial stab using a WITH statement in a CASE WHEN block to generate the text for extras or exclusions for a customer order
+```sql
+WITH pizza_order_names AS (
+SELECT
+  co.order_id,
+  co.customer_id,
+  co.pizza_id,
+  co.order_time AS order_time,
+  pn.pizza_name,
+  co.exclusions,
+  co.extras
+FROM pizza_runner.customer_orders AS co
+INNER JOIN pizza_runner.pizza_names AS pn 
+USING(pizza_id)
+WHERE order_id = 9
+ORDER BY order_id
+), 
+exclusions_extras AS (
+SELECT *,
+  CASE 
+    WHEN LENGTH(exclusions) >= 1 AND exclusions != 'null'
+      THEN (
+      WITH exclusion_toppings AS (
+        SELECT 
+        REGEXP_SPLIT_TO_TABLE(exclusions, '[,\s]+')::INTEGER AS exclusions_int
+      FROM pizza_order_names
+      )
+    SELECT 
+      STRING_AGG(pt.topping_name, ', ') AS exclusions
+    FROM exclusion_toppings et 
+    INNER JOIN pizza_runner.pizza_toppings pt 
+      ON et.exclusions_int = pt.topping_id
+    )
+    ELSE ''
+  END AS exclusion_text,
+  CASE 
+    WHEN LENGTH(extras) >= 1 AND extras != 'null'
+      THEN (
+      WITH extras_toppings AS (
+        SELECT 
+        REGEXP_SPLIT_TO_TABLE(extras, '[,\s]+')::INTEGER AS extras_int
+      FROM pizza_order_names
+      )
+    SELECT 
+      STRING_AGG(pt.topping_name, ', ') AS extras_txt
+    FROM extras_toppings et 
+    INNER JOIN pizza_runner.pizza_toppings pt 
+      ON et.extras_int = pt.topping_id
+    )
+    ELSE ''
+  END AS extras_text
+FROM pizza_order_names
+)
+SELECT * FROM exclusions_extras;
+```
+|order_id|customer_id|pizza_id|order_time|pizza_name|exclusions|extras|exclusion_text|extras_text|
+|----|-----|-----|----|----|----|----|----|-----|
+|9|103|1|2021-01-10 11:22:59.000|Meatlovers|4|1, 5|Cheese|Bacon, Chicken|

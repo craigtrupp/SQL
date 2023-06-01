@@ -1134,3 +1134,741 @@ SELECT * FROM exclusions_extras;
 |order_id|customer_id|pizza_id|order_time|pizza_name|exclusions|extras|exclusion_text|extras_text|
 |----|-----|-----|----|----|----|----|----|-----|
 |9|103|1|2021-01-10 11:22:59.000|Meatlovers|4|1, 5|Cheese|Bacon, Chicken|
+
+<br>
+
+* Here is the complete answer in another fashion
+  - cte_cleaned_customer_orders cleans the orders and uses a row_number for later grouping and not aggregating the same ingredients (extras or exclusions)
+  - next cte we set to union two subsets as the function used only will capture non-null records
+  - next the table can be joined and use a string_agg function with our subsequent left style joins (won't always need the toppings but if extras or exclusions are null)
+  - then two final CTEs too generate the concatenation and conditional setting of the final string output
+  - Lastly we use the original row_number to re-orient our orders to resemble all the customer orders table and total order/pizza count
+```sql
+WITH cte_cleaned_customer_orders AS (
+  SELECT
+    order_id,
+    customer_id,
+    pizza_id,
+    CASE
+      WHEN exclusions IN ('', 'null') 
+        THEN NULL
+      ELSE exclusions
+    END AS exclusions,
+    CASE
+      WHEN extras IN ('', 'null') 
+        THEN NULL
+      ELSE extras
+    END AS extras,
+    order_time,
+    ROW_NUMBER() OVER () AS original_row_number
+  FROM pizza_runner.customer_orders
+),
+-- when using the regexp_split_to_table function only records where there are
+-- non-null records remain so we will need to union them back in!
+cte_extras_exclusions AS (
+    SELECT
+      order_id,
+      customer_id,
+      pizza_id,
+      REGEXP_SPLIT_TO_TABLE(exclusions, '[,\s]+')::INTEGER AS exclusions_topping_id,
+      REGEXP_SPLIT_TO_TABLE(extras, '[,\s]+')::INTEGER AS extras_topping_id,
+      order_time,
+      original_row_number
+    FROM cte_cleaned_customer_orders
+  -- here we add back in the null extra/exclusion rows
+  -- does it make any difference if we use UNION or UNION ALL?
+  UNION
+    SELECT
+      order_id,
+      customer_id,
+      pizza_id,
+      NULL AS exclusions_topping_id,
+      NULL AS extras_topping_id,
+      order_time,
+      original_row_number
+    FROM cte_cleaned_customer_orders
+    WHERE exclusions IS NULL AND extras IS NULL
+),
+cte_complete_dataset AS (
+  SELECT
+    base.order_id,
+    base.customer_id,
+    base.pizza_id,
+    names.pizza_name,
+    base.order_time,
+    base.original_row_number,
+    STRING_AGG(exclusions.topping_name, ', ') AS exclusions,
+    STRING_AGG(extras.topping_name, ', ') AS extras
+  FROM cte_extras_exclusions AS base
+  INNER JOIN pizza_runner.pizza_names AS names
+    ON base.pizza_id = names.pizza_id
+  LEFT JOIN pizza_runner.pizza_toppings AS exclusions
+    ON base.exclusions_topping_id = exclusions.topping_id
+  LEFT JOIN pizza_runner.pizza_toppings AS extras
+    ON base.extras_topping_id = extras.topping_id
+  GROUP BY
+    base.order_id,
+    base.customer_id,
+    base.pizza_id,
+    names.pizza_name,
+    base.order_time,
+    base.original_row_number
+),
+cte_parsed_string_outputs AS (
+SELECT
+  order_id,
+  customer_id,
+  pizza_id,
+  order_time,
+  original_row_number,
+  pizza_name,
+  CASE WHEN exclusions IS NULL THEN '' ELSE ' - Exclude ' || exclusions END AS exclusions,
+  CASE WHEN extras IS NULL THEN '' ELSE ' - Extra ' || exclusions END AS extras
+FROM cte_complete_dataset
+),
+final_output AS (
+  SELECT
+    order_id,
+    customer_id,
+    pizza_id,
+    order_time,
+    original_row_number,
+    pizza_name || exclusions || extras AS order_item
+  FROM cte_parsed_string_outputs
+)
+SELECT
+  order_id,
+  customer_id,
+  pizza_id,
+  order_time,
+  order_item
+FROM final_output
+ORDER BY original_row_number;
+```
+|order_id|customer_id|pizza_id|order_time|order_item|
+|----|-----|----|----|-----|
+|1|101|1|2021-01-01 18:05:02.000|Meatlovers|
+|2|101|1|2021-01-01 19:00:52.000|Meatlovers|
+|3|102|1|2021-01-02 23:51:23.000|Meatlovers|
+|3|102|2|2021-01-02 23:51:23.000|Vegetarian|
+|4|103|1|2021-01-04 13:23:46.000|Meatlovers - Exclude Cheese|
+|4|103|1|2021-01-04 13:23:46.000|Meatlovers - Exclude Cheese|
+|4|103|2|2021-01-04 13:23:46.000|Vegetarian - Exclude Cheese|
+|5|104|1|2021-01-08 21:00:29.000|Meatlovers|
+|6|101|2|2021-01-08 21:03:13.000|Vegetarian|
+|7|105|2|2021-01-08 21:20:29.000|Vegetarian|
+|8|102|1|2021-01-09 23:54:33.000|Meatlovers|
+|9|103|1|2021-01-10 11:22:59.000|Meatlovers - Exclude Cheese - Extra Cheese|
+|10|104|1|2021-01-11 18:34:49.000|Meatlovers|
+|10|104|1|2021-01-11 18:34:49.000|Meatlovers - Exclude BBQ Sauce, Mushrooms - Extra BBQ Sauce, Mushrooms|
+
+<br>
+
+**5.** - What is the total quantity of each ingredient used in all delivered pizzas sorted by most frequent first?
+```sql
+WITH cte_cleaned_customer_orders AS (
+  SELECT
+    order_id,
+    customer_id,
+    pizza_id,
+    CASE
+      WHEN exclusions IN ('', 'null') THEN NULL
+      ELSE exclusions
+    END AS exclusions,
+    CASE
+      WHEN extras IN ('', 'null') THEN NULL
+      ELSE extras
+    END AS extras,
+    order_time,
+    ROW_NUMBER() OVER () AS original_row_number
+  FROM pizza_runner.customer_orders
+),
+-- split the toppings using our previous solution
+cte_regular_toppings AS (
+SELECT
+  pizza_id,
+  REGEXP_SPLIT_TO_TABLE(toppings, '[,\s]+')::INTEGER AS topping_id
+FROM pizza_runner.pizza_recipes
+),
+-- now we can should left join our regular toppings with all pizzas orders
+cte_base_toppings AS (
+  SELECT
+    cte_cleaned_customer_orders.order_id,
+    cte_cleaned_customer_orders.customer_id,
+    cte_cleaned_customer_orders.pizza_id,
+    cte_cleaned_customer_orders.order_time,
+    cte_cleaned_customer_orders.original_row_number,
+    cte_regular_toppings.topping_id
+  FROM cte_cleaned_customer_orders
+  LEFT JOIN cte_regular_toppings
+    ON cte_cleaned_customer_orders.pizza_id = cte_regular_toppings.pizza_id
+),
+-- now we can generate CTEs for exclusions and extras by the original row number
+cte_exclusions AS (
+  SELECT
+    order_id,
+    customer_id,
+    pizza_id,
+    order_time,
+    original_row_number,
+    REGEXP_SPLIT_TO_TABLE(exclusions, '[,\s]+')::INTEGER AS topping_id
+  FROM cte_cleaned_customer_orders
+  WHERE exclusions IS NOT NULL
+),
+-- check this one!
+cte_extras AS (
+  SELECT
+    order_id,
+    customer_id,
+    pizza_id,
+    order_time,
+    original_row_number,
+    REGEXP_SPLIT_TO_TABLE(extras, '[,\s]+')::INTEGER AS topping_id
+  FROM cte_cleaned_customer_orders
+  WHERE extras IS NOT NULL
+),
+-- now we can perform an except and a union all on the respective CTEs
+-- also check this one!
+cte_combined_orders AS (
+  SELECT * FROM cte_base_toppings
+  EXCEPT
+  SELECT * FROM cte_exclusions
+  UNION ALL
+  SELECT * FROM cte_extras
+)
+-- perform aggregation on topping_id and join to get topping names
+SELECT
+  t2.topping_name,
+  COUNT(*) AS topping_count
+FROM cte_combined_orders AS t1
+INNER JOIN pizza_runner.pizza_toppings AS t2
+  ON t1.topping_id = t2.topping_id
+GROUP BY t2.topping_name
+ORDER BY topping_count DESC;
+```
+|topping_name|topping_count|
+|-----|-----|
+|Bacon|14
+|Mushrooms|13|
+|Chicken|11|
+|Cheese|11|
+|Pepperoni|10|
+|Salami|10|
+|Beef|10|
+|BBQ Sauce|9|
+|Tomato Sauce|4|
+|Onions|4|
+|Tomatoes|4|
+|Peppers|4|
+
+---
+
+<br>
+
+### `Pricing and Ratings`
+**1.** If a Meat Lovers pizza costs $12 and Vegetarian costs $10 and there were no charges for changes - how much money has Pizza Runner made so far if there are no delivery fees?
+```sql
+WITH pizza_names AS (
+SELECT 
+  co.order_id,
+  pn.pizza_id,
+  pn.pizza_name
+FROM pizza_runner.customer_orders co 
+INNER JOIN pizza_runner.pizza_names pn 
+  USING(pizza_id)
+ORDER BY order_id
+)
+SELECT 
+  pizza_name,
+  SUM(
+    CASE 
+      WHEN pizza_name = 'Meatlovers'
+        THEN 12
+      ELSE 10
+    END 
+  ) AS pizza_total_revenue
+FROM pizza_names
+GROUP BY pizza_name
+ORDER BY pizza_total_revenue DESC;
+```
+|pizza_name|pizza_total_revenue|
+|-----|----|
+|Meatlovers|120|
+|Vegetarian|40|
+
+* If quickly looking for a non group by aggregate
+```sql
+SELECT
+  SUM(
+    CASE
+      WHEN pizza_id = 2 THEN 10
+      WHEN pizza_id = 1 THEN 12
+      END
+  ) AS revenue
+FROM pizza_runner.customer_orders;
+```
+|revenue|
+|----|
+|160|
+
+<br>
+
+**2.**  What if there was an additional $1 charge for any pizza extras? + Add cheese is $1 extra
+* No Cancelled Orders
+  - Initially here is the idea of how we are counting extras and excluding cancelled orders
+```sql
+-- 1 is Meat and 2 is Vegetarian
+WITH pizza_n_extras AS (
+SELECT 
+  order_id,
+  runner_id,
+  pizza_id,
+  extras,
+  REGEXP_SPLIT_TO_ARRAY(extras, '[,\s]+') AS extras_lst
+FROM pizza_runner.runner_orders ro
+-- remove cancelled orders
+INNER JOIN pizza_runner.customer_orders co 
+  USING(order_id)
+WHERE ro.cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation') OR  ro.cancellation IS NULL
+),
+extras_count AS (
+SELECT *,
+  CASE 
+  -- index starts at 1 for conditional checks we don't want to count
+    WHEN extras_lst[1] = '' OR extras_lst[1] = 'null' OR extras_lst IS NULL
+      THEN 0
+    ELSE
+    -- cardinality allows you to count everything in the list 
+      cardinality(extras_lst)
+  END AS total_order_extras
+FROM pizza_n_extras
+)
+SELECT * FROM extras_count
+```
+|order_id|runner_id|pizza_id|extras|extras_lst|total_order_extras|
+|-----|----|----|----|-----|----|
+|1|1|1||[ "" ]|0|
+|2|1|1||[ "" ]|0|
+|3|1|1||[ "" ]|0|
+|3|1|2|null|null|0|
+|4|2|1||[ "" ]|0|
+|4|2|1||[ "" ]|0|
+|4|2|2||[ "" ]|0|
+|5|3|1|1|[ "1" ]|1|
+|7|2|2|1|[ "1" ]|1|
+|8|2|1|null|[ "null" ]|0|
+|10|1|1|null|[ "null" ]|0|
+|10|1|1|1, 4|[ "1", "4" ]|2|
+
+* My Solution
+```sql
+-- 1 is Meat ($12) and 2 is Vegetarian ($10)
+WITH pizza_n_extras AS (
+SELECT 
+  order_id,
+  runner_id,
+  pizza_id,
+  extras,
+  REGEXP_SPLIT_TO_ARRAY(extras, '[,\s]+') AS extras_lst
+FROM pizza_runner.runner_orders ro
+-- remove cancelled orders
+INNER JOIN pizza_runner.customer_orders co 
+  USING(order_id)
+WHERE ro.cancellation NOT IN ('Restaurant Cancellation', 'Customer Cancellation') OR  ro.cancellation IS NULL
+),
+extras_count AS (
+SELECT *,
+  CASE 
+  -- index starts at 1 for conditional checks we don't want to count
+    WHEN extras_lst[1] = '' OR extras_lst[1] = 'null' OR extras_lst IS NULL
+      THEN 0
+    ELSE
+    -- cardinality allows you to count everything in the list 
+      cardinality(extras_lst)
+  END AS total_order_extras
+FROM pizza_n_extras
+),
+pizza_totals AS (
+SELECT
+  order_id,
+  pizza_id,
+  extras,
+  extras_lst,
+  CASE 
+    WHEN pizza_id = 1 AND total_order_extras >= 1
+      THEN 12 + (total_order_extras * 1)
+    WHEN pizza_id = 1 AND total_order_extras = 0
+      THEN 12
+    WHEN pizza_id = 2 AND total_order_extras >= 1
+      THEN 10 + (total_order_extras * 1)
+    WHEN pizza_id = 2 AND total_order_extras = 0
+      THEN 10
+  END AS pizza_total
+FROM extras_count
+)
+SELECT *, SUM(pizza_total) OVER() AS total_order_sum FROM pizza_totals
+```
+|order_id|pizza_id|extras_lst|pizza_total|total_order_sum|
+|-----|-----|----|----|------|
+|1|1|[ "" ]|12|142|
+|2|1|[ "" ]|12|142|
+|3|1|[ "" ]|12|142|
+|3|2|null|10|142|
+|4|1|[ "" ]|12|142|
+|4|1|[ "" ]|12|142|
+|4|2|[ "" ]|10|142|
+|5|1|[ "1" ]|13|142|
+|7|2|[ "1" ]|11|142|
+|8|1|[ "null" ]|12|142|
+|10|1|[ "null" ]|12|142|
+|10|1|[ "1", "4" ]|14|142|
+
+* Another approach
+  - the WHERE EXISTS filtering only returns runner orders that were picked up
+  - Nex the SUM call needed a change for the operation to add the total value from the COALESCE statement which is the 4 extras we're after
+```sql
+WITH cte_cleaned_customer_orders AS (
+  SELECT
+    order_id,
+    customer_id,
+    pizza_id,
+    CASE
+      WHEN exclusions IN ('', 'null') THEN NULL
+      ELSE exclusions
+    END AS exclusions,
+    CASE
+      WHEN extras IN ('', 'null') THEN NULL
+      ELSE extras
+    END AS extras,
+    order_time,
+    ROW_NUMBER() OVER () AS original_row_number
+  FROM pizza_runner.customer_orders
+  WHERE EXISTS (
+    SELECT 1 FROM pizza_runner.runner_orders
+    WHERE customer_orders.order_id = runner_orders.order_id
+      AND runner_orders.pickup_time != 'null'
+  )
+)
+SELECT
+  SUM(
+    CASE
+      WHEN pizza_id = 1 THEN 12
+      WHEN pizza_id = 2 THEN 10
+      END +
+    -- we can use CARDINALITY to find the length of array of extras
+    COALESCE(
+      CARDINALITY(REGEXP_SPLIT_TO_ARRAY(extras, '[,\s]+')),
+      0
+    )
+  ) AS cost
+FROM cte_cleaned_customer_orders;
+```
+
+<br>
+
+**3.** The Pizza Runner team now wants to add an additional ratings system that allows customers to rate their runner, how would you design an additional table for this new dataset - generate a schema for this new table and insert your own data for ratings for each successful customer order between 1 to 5.
+
+```sql
+SELECT SETSEED(1);
+
+-- Drop table if in pizza_runner.schema
+DROP TABLE IF EXISTS pizza_runner.ratings;
+CREATE TABLE pizza_runner.ratings (
+  "order_id" INTEGER,
+  "rating" INTEGER
+);
+
+INSERT INTO pizza_runner.ratings
+SELECT
+  order_id,
+  FLOOR(1 + 5 * RANDOM()) AS rating
+FROM pizza_runner.runner_orders
+WHERE pickup_time != 'null';
+
+SELECT * FROM pizza_runner.ratings;
+```
+|order_id|rating|
+|-----|----|
+|1|3|
+|2|4|
+|3|4|
+|4|3|
+|5|3|
+|7|2|
+|8|2|
+|10|3|
+
+<br>
+
+**4.** Using your newly generated table - can you join all of the information together to form a table which has the following information for successful deliveries?
+- customer_id
+- order_id
+- runner_id
+- rating
+- order_time
+- pickup_time
+- Time between order and pickup
+- Delivery duration
+- Average speed
+- Total number of pizzas
+
+```sql
+WITH ratings_pickups_stats AS (
+SELECT
+  rt.order_id,
+  ro.runner_id,
+  rt.rating,
+  co.order_time,
+  ro.pickup_time::timestamp,
+  -- must cast pickup_time varchar to timestamp
+  ro.pickup_time::timestamp - co.order_time AS order_pickup_duration,
+  DATE_PART('minutes', AGE(ro.pickup_time::timestamp, co.order_time))::INTEGER AS order_pickup_minutes,
+  UNNEST(REGEXP_MATCH(ro.distance, '^[0-9, .]*'))::NUMERIC AS numeric_distance_km,
+  UNNEST(REGEXP_MATCH(ro.duration, '^\d+'))::NUMERIC AS duration_mins
+FROM pizza_runner.ratings rt 
+INNER JOIN pizza_runner.customer_orders co 
+  ON rt.order_id = co.order_id
+INNER JOIN pizza_runner.runner_orders ro 
+  ON co.order_id = ro.order_id
+),
+ratings_avg_duration AS (
+SELECT *,
+  ROUND((numeric_distance_km * (60 / duration_mins::DECIMAL))::NUMERIC, 1) AS avg_speed,
+  CONCAT(ROUND((numeric_distance_km * (60 / duration_mins::DECIMAL))::NUMERIC, 1), ' km/hour') AS avg_speed_delivery
+FROM ratings_pickups_stats
+)
+SELECT 
+  order_id,
+  runner_id,
+  rating,
+  order_time,
+  pickup_time,
+  -- using DATE_PART to get the minutes between the pickup and order time, most recent time first similar to how the subtraction returns the object for minutes/seconds
+  order_pickup_minutes,
+  avg_speed,
+  avg_speed_delivery,
+  COUNT(order_id) AS pizza_count
+FROM ratings_avg_duration
+GROUP BY order_id, runner_id, rating, order_time, pickup_time, order_pickup_minutes, avg_speed, avg_speed_delivery
+ORDER BY order_id;
+```
+|order_id|runner_id|rating|order_time|pickup_time|order_pickup_minutes|avg_speed|avg_speed_delivery|pizza_count|
+|----|----|----|-----|----|----|----|----|-----|
+|1|1|3|2021-01-01 18:05:02.000|2021-01-01 18:15:34.000|10|37.5|37.5 km/hour|1|
+|2|1|4|2021-01-01 19:00:52.000|2021-01-01 19:10:54.000|10|44.4|44.4 km/hour|1|
+|3|1|4|2021-01-02 23:51:23.000|2021-01-03 00:12:37.000|21|40.2|40.2 km/hour|2|
+|4|2|3|2021-01-04 13:23:46.000|2021-01-04 13:53:03.000|29|35.1|35.1 km/hour|3|
+|5|3|3|2021-01-08 21:00:29.000|2021-01-08 21:10:57.000|10|40.0|40.0 km/hour|1|
+|7|2|2|2021-01-08 21:20:29.000|2021-01-08 21:30:45.000|10|60.0|60.0 km/hour|1|
+|8|2|2|2021-01-09 23:54:33.000|2021-01-10 00:15:02.000|20|93.6|93.6 km/hour|1|
+|10|1|3|2021-01-11 18:34:49.000|2021-01-11 18:50:20.000|15|60.0|60.0 km/hour|2|
+
+* Another way at it 
+```sql
+WITH cte_adjusted_runner_orders AS (
+  SELECT
+    t1.order_id,
+    t1.runner_id,
+    t2.order_time,
+    t3.rating,
+    t1.pickup_time::TIMESTAMP AS pickup_time,
+    UNNEST(REGEXP_MATCH(duration, '(^[0-9]+)'))::NUMERIC AS duration,
+    UNNEST(REGEXP_MATCH(distance, '(^[0-9,.]+)'))::NUMERIC AS distance,
+    COUNT(t2.*) AS pizza_count
+  FROM pizza_runner.runner_orders AS t1
+  INNER JOIN pizza_runner.customer_orders AS t2
+    ON t1.order_id = t1.order_id
+  LEFT JOIN pizza_runner.ratings AS t3
+    ON t3.order_id = t3.order_id
+  -- WHERE t1.pickup_time != 'null'
+  GROUP BY
+    t1.order_id,
+    t1.runner_id,
+    t3.rating,
+    t2.order_time,
+    t1.pickup_time,
+    t1.duration,
+    t1.distance
+)
+SELECT
+  order_id,
+  runner_id,
+  rating,
+  order_time,
+  pickup_time,
+  DATE_PART('min', AGE(pickup_time::TIMESTAMP, order_time))::INTEGER AS pickup_minutes,
+  ROUND(distance / (duration / 60), 1) AS avg_speed,
+  pizza_count
+FROM cte_adjusted_runner_orders;
+```
+
+<br>
+
+**5.** If a Meat Lovers pizza was $12 and Vegetarian $10 fixed prices with no cost for extras and each runner is paid $0.30 per kilometre traveled - how much money does Pizza Runner have left over after these deliveries?
+```sql
+-- First let's get our fields
+-- Will use a sum/case by for a WINDOW function to get the total pizza_sum for the store
+SELECT 
+  ro.order_id,
+  co.pizza_id, 
+  ro.pickup_time,
+  UNNEST(REGEXP_MATCH(ro.distance, '^[0-9, .]*'))::NUMERIC AS numeric_distance_km,
+  SUM (
+    CASE 
+      WHEN pizza_id = 1 THEN 12
+      WHEN pizza_id = 2 THEN 10
+    END
+  ) OVER (
+    PARTITION BY order_id
+  ) AS order_pizza_sum
+FROM pizza_runner.runner_orders ro
+INNER JOIN pizza_runner.customer_orders co 
+  USING(order_id)
+WHERE ro.pickup_time != 'null';
+```
+|order_id|pizza_id|pickup_time|numeric_distance_km|order_pizza_sum|
+|----|-----|-----|----|----|
+|1|1|2021-01-01 18:15:34|20|12|
+|2|1|2021-01-01 19:10:54|20|12|
+|3|1|2021-01-03 00:12:37|13.4|22|
+|3|2|2021-01-03 00:12:37|13.4|22|
+|4|1|2021-01-04 13:53:03|23.4|34|
+|4|1|2021-01-04 13:53:03|23.4|34|
+|4|2|2021-01-04 13:53:03|23.4|34|
+|5|1|2021-01-08 21:10:57|10|12|
+|7|2|2021-01-08 21:30:45|25|10|
+|8|1|2021-01-10 00:15:02|23.4|12|
+|10|1|2021-01-11 18:50:20|10|24|
+|10|1|2021-01-11 18:50:20|10|24|
+
+* How we're getting there
+```sql
+WITH pizza_runner_profit AS (
+SELECT 
+  ro.order_id,
+  co.pizza_id, 
+  ro.pickup_time,
+  UNNEST(REGEXP_MATCH(ro.distance, '^[0-9, .]*'))::NUMERIC AS numeric_distance_km
+FROM pizza_runner.runner_orders ro
+INNER JOIN pizza_runner.customer_orders co 
+  USING(order_id)
+WHERE ro.pickup_time != 'null'
+),
+order_pizza_sum AS (
+SELECT
+  order_id,
+  numeric_distance_km,
+  SUM (
+    CASE 
+      WHEN pizza_id = 1 THEN 12
+      WHEN pizza_id = 2 THEN 10
+    END
+  ) AS order_pizza_store_total
+FROM pizza_runner_profit
+GROUP BY order_id, numeric_distance_km
+ORDER BY order_id
+),
+delivery_driver_cost AS (
+SELECT 
+  order_id,
+  order_pizza_store_total,
+  numeric_distance_km::NUMERIC * 0.3 AS driver_expense,
+  order_pizza_store_total - (numeric_distance_km::NUMERIC * 0.3)::FLOAT AS store_order_takehome
+FROM order_pizza_sum
+)
+SELECT * FROM delivery_driver_cost;
+```
+|order_id|order_pizza_store_total|driver_expense|store_order_takehome|
+|----|-----|-----|----|
+|1|12|6.0|6|
+|2|12|6.0|6|
+|3|22|4.02|17.98|
+|4|34|7.02|26.98|
+|5|12|3.0|9|
+|7|10|7.5|2.5|
+|8|12|7.02|4.98|
+|10|24|3.0|21|
+
+* Now for it all
+```sql
+WITH pizza_runner_profit AS (
+SELECT 
+  ro.order_id,
+  co.pizza_id, 
+  ro.pickup_time,
+  UNNEST(REGEXP_MATCH(ro.distance, '^[0-9, .]*'))::NUMERIC AS numeric_distance_km
+FROM pizza_runner.runner_orders ro
+INNER JOIN pizza_runner.customer_orders co 
+  USING(order_id)
+WHERE ro.pickup_time != 'null'
+),
+order_pizza_sum AS (
+SELECT
+  order_id,
+  numeric_distance_km,
+  SUM (
+    CASE 
+      WHEN pizza_id = 1 THEN 12
+      WHEN pizza_id = 2 THEN 10
+    END
+  ) AS order_pizza_store_total
+FROM pizza_runner_profit
+GROUP BY order_id, numeric_distance_km
+ORDER BY order_id
+),
+delivery_driver_cost AS (
+SELECT 
+  order_id,
+  order_pizza_store_total,
+  numeric_distance_km::NUMERIC * 0.3 AS driver_expense,
+  order_pizza_store_total - (numeric_distance_km * 0.3) AS store_order_takehome
+FROM order_pizza_sum
+)
+-- USING LIMIT here doesn't impact the window that needs to be summed for each order_takehome, just limits the same value repeating for all rows from each order_delivery below
+SELECT 
+  SUM(store_order_takehome) OVER() AS take_home_revenue
+FROM delivery_driver_cost
+LIMIT 1;
+```
+|take_home_revenue|
+|----|
+|94.44|
+
+
+* Another approach
+```sql
+WITH cte_adjusted_runner_orders AS (
+  SELECT
+    t1.order_id,
+    t1.runner_id,
+    t2.order_time,
+    t3.rating,
+    t1.pickup_time::TIMESTAMP AS pickup_time,
+    UNNEST(REGEXP_MATCH(duration, '(^[0-9]+)'))::NUMERIC AS duration,
+    UNNEST(REGEXP_MATCH(distance, '(^[0-9,.]+)'))::NUMERIC AS distance,
+    SUM(CASE WHEN t2.pizza_id = 1 THEN 1 ELSE 0 END) AS meatlovers_count,
+    SUM(CASE WHEN t2.pizza_id = 2 THEN 1 ELSE 0 END) AS vegetarian_count
+  FROM pizza_runner.runner_orders AS t1
+  INNER JOIN pizza_runner.customer_orders AS t2
+    ON t1.order_id = t2.order_id
+  LEFT JOIN pizza_runner.ratings AS t3
+    ON t2.order_id = t3.order_id
+  WHERE t1.pickup_time != 'null'
+  GROUP BY
+    t1.order_id,
+    t1.runner_id,
+    t3.rating,
+    t2.order_time,
+    t1.pickup_time,
+    t1.duration,
+    t1.distance
+)
+SELECT
+  SUM(
+    (12 * meatlovers_count  + 10 * vegetarian_count) - (0.3 * distance)
+  ) AS leftover_revenue
+FROM cte_adjusted_runner_orders;
+```
+|leftover_revenue|
+|----|
+|94.44|

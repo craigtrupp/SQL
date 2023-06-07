@@ -83,7 +83,7 @@ Each of the following case study questions can be answered using a single SQL st
 
 1. What is the total amount each customer spent at the restaurant?
 ```sql
--- Any idea here for a customer total using window function for customer and day totals for the customer
+-- Multiple Window Functions here to get an idea of daily/total value
 SELECT
   s.customer_id,
   s.order_date,

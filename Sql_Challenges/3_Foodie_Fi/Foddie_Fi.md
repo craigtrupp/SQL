@@ -832,3 +832,252 @@ WHERE plan_id = 1 AND prev_plan = 2;
 |customer_count|
 |----|
 |0|
+
+---
+
+<br>
+
+### `C. Challenge Payment Question`
+The Foodie-Fi team wants you to create a new payments table for the year 2020 that includes amounts paid by each customer in the subscriptions table with the following requirements:
+
+* monthly payments always occur on the same day of month as the original start_date of any monthly paid plan
+* upgrades from basic to monthly or pro plans are reduced by the current paid amount in that month and start immediately
+* upgrades from pro monthly to pro annual are paid at the end of the current billing period and also starts at the end of the month period
+* once a customer churns they will no longer make payments
+
+Example outputs for this table might look like the following:
+
+|customer_id|plan_id|plan_name|payment_date|amount|payment_order|
+|-----|-----|------|-----|-----|-----|
+|1|1|basic monthly|2020-08-08|9.90|1|
+|1|1|basic monthly|2020-09-08|9.90|2|
+|1|1|basic monthly|2020-10-08|9.90|3|
+|1|1|basic monthly|2020-11-08|9.90|4|
+|1|1|basic monthly|2020-12-08|9.90|5|
+|2|3|pro annual|2020-09-27|199.00|1|
+
+<br>
+
+#### **Path**
+* `Part 1`
+```sql
+SELECT 
+  customer_id, 
+  plan_id, 
+  plan_name, 
+  start_date, 
+  price,
+  LEAD(start_date, 1) OVER (
+    PARTITION BY customer_id 
+    ORDER BY start_date, plan_id
+  ) AS cutoff_date
+FROM foodie_fi.subscriptions
+JOIN foodie_fi.plans
+USING (plan_id)
+WHERE plan_name NOT IN('trial', 'churn') AND 
+  start_date BETWEEN '2020-01-01' AND '2020-12-31'
+```
+|customer_id|plan_id|plan_name|start_date|price|cutoff_date|
+|-----|-----|-----|-----|----|-----|
+|1|1|basic monthly|2020-08-08|9.90|null|
+|2|3|pro annual|2020-09-27|199.00|null|
+|3|1|basic monthly|2020-01-20|9.90|null|
+|4|1|basic monthly|2020-01-24|9.90|null|
+|5|1|basic monthly|2020-08-10|9.90|null|
+|6|1|basic monthly|2020-12-30|9.90|null|
+|7|1|basic monthly|2020-02-12|9.90|2020-05-22|
+|7|2|pro monthly|2020-05-22|19.90|null|
+|8|1|basic monthly|2020-06-18|9.90|2020-08-03|
+|8|2|pro monthly|2020-08-03|19.90|null|
+
+<br>
+
+* Here we use a `LEAD` to see if any non **churn** or **trial** plan would be a subsequent cutoff date and if it's not will pull forward the next subscription date for the customer. As the customer plan we find may be the last and return a **null** we can subsequently set any null value as the end of the year to indicate any row for the customer found as such would be their last subscription data for the year of interest
+
+<br>
+
+```sql
+WITH cutoff_date AS (
+SELECT 
+  sb.customer_id AS customer_id, 
+  pl.plan_id AS plan_id, 
+  pl.plan_name AS plan_name , 
+  sb.start_date AS start_date, 
+  pl.price AS price,
+  LEAD(start_date, 1) OVER (
+    PARTITION BY sb.customer_id 
+    ORDER BY sb.start_date, sb.plan_id
+  ) AS cutoff_date,
+  pl.price AS amount
+FROM foodie_fi.subscriptions AS sb
+JOIN foodie_fi.plans AS pl
+USING (plan_id)
+WHERE plan_name NOT IN('trial', 'churn') AND 
+  start_date BETWEEN '2020-01-01' AND '2020-12-31'
+),
+-- coalesce (set null value)
+end_of_year AS (
+SELECT
+  customer_id,
+  plan_id, 
+  plan_name,
+  start_date,
+  COALESCE(cutoff_date, '2020-12-31') AS cutoff_date,
+  amount
+FROM cutoff_date
+)
+SELECT * FROM end_of_year LIMIT 10;
+```
+|customer_id|plan_id|plan_name|start_date|cutoff_date|amount|
+|-----|----|-----|----|----|----|
+|1|1|basic monthly|2020-08-08|2020-12-31|9.90|
+|2|3|pro annual|2020-09-27|2020-12-31|199.00|
+|3|1|basic monthly|2020-01-20|2020-12-31|9.90|
+|4|1|basic monthly|2020-01-24|2020-12-31|9.90|
+|5|1|basic monthly|2020-08-10|2020-12-31|9.90|
+|6|1|basic monthly|2020-12-30|2020-12-31|9.90|
+|7|1|basic monthly|2020-02-12|2020-05-22|9.90|
+|7|2|pro monthly|2020-05-22|2020-12-31|19.90|
+|8|1|basic monthly|2020-06-18|2020-08-03|9.90|
+|8|2|pro monthly|2020-08-03|2020-12-31|19.90|
+
+<br>
+
+`Part 2`
+* Now we need to look at the plan types to indicate how many times they paid (monthly plans) or if a annual plan is needed for non monthly-type recurring payments
+
+```sql
+WITH RECURSIVE cutoff_date AS (
+SELECT 
+  sb.customer_id AS customer_id, 
+  pl.plan_id AS plan_id, 
+  pl.plan_name AS plan_name , 
+  sb.start_date AS start_date, 
+  pl.price AS price,
+  LEAD(start_date, 1) OVER (
+    PARTITION BY sb.customer_id 
+    ORDER BY sb.start_date, sb.plan_id
+  ) AS cutoff_date,
+  pl.price AS amount
+FROM foodie_fi.subscriptions AS sb
+JOIN foodie_fi.plans AS pl
+USING (plan_id)
+WHERE plan_name NOT IN('trial', 'churn') AND 
+  start_date BETWEEN '2020-01-01' AND '2020-12-31'
+),
+-- coalesce (set null value)
+end_of_year AS (
+SELECT
+  customer_id,
+  plan_id, 
+  plan_name,
+  start_date,
+  COALESCE(cutoff_date, '2020-12-31') AS cutoff_date,
+  amount
+FROM cutoff_date
+),
+recursive_date_cte AS (
+SELECT
+  customer_id, plan_id, plan_name, start_date, cutoff_date, amount
+FROM end_of_year
+UNION ALL
+SELECT
+  customer_id, plan_id, plan_name,
+  DATE((start_date + INTERVAL '1 month')) AS start_date,
+  cutoff_date,
+  amount
+FROM recursive_date_cte
+-- create table to union based on cutoff_date
+WHERE cutoff_date > DATE((start_date + INTERVAL '1 month'))
+  AND plan_name != 'pro annual'
+)
+SELECT *
+FROM recursive_date_cte
+ORDER BY customer_id, start_date
+```
+* This recursive CTE does require the keyword before with 
+* Looking at customer_ids like 16 & 17 illustrate how the recursive cte is generating a unioned output from each row generated with the subsequent month creation
+
+![Recursive cte](Images/Recursive_CTE.png)
+
+<br>
+
+`Part 3` - Payment Adjustments
+```sql
+CREATE TABLE payments_2020 AS
+WITH RECURSIVE cutoff_date AS (
+SELECT 
+  sb.customer_id AS customer_id, 
+  pl.plan_id AS plan_id, 
+  pl.plan_name AS plan_name , 
+  sb.start_date AS start_date, 
+  pl.price AS price,
+  LEAD(start_date, 1) OVER (
+    PARTITION BY sb.customer_id 
+    ORDER BY sb.start_date, sb.plan_id
+  ) AS cutoff_date,
+  pl.price AS amount
+FROM foodie_fi.subscriptions AS sb
+JOIN foodie_fi.plans AS pl
+USING (plan_id)
+WHERE plan_name NOT IN('trial', 'churn') AND 
+  start_date BETWEEN '2020-01-01' AND '2020-12-31'
+),
+-- coalesce (set null value)
+end_of_year AS (
+SELECT
+  customer_id,
+  plan_id, 
+  plan_name,
+  start_date,
+  COALESCE(cutoff_date, '2020-12-31') AS cutoff_date,
+  amount
+FROM cutoff_date
+),
+recursive_date_cte AS (
+SELECT
+  customer_id, plan_id, plan_name, start_date, cutoff_date, amount
+FROM end_of_year
+UNION ALL
+SELECT
+  customer_id, plan_id, plan_name,
+  DATE((start_date + INTERVAL '1 month')) AS start_date,
+  cutoff_date,
+  amount
+FROM recursive_date_cte
+-- create table to union based on cutoff_date
+WHERE cutoff_date > DATE((start_date + INTERVAL '1 month'))
+  AND plan_name != 'pro annual'
+),
+-- however, need to look at the price value and adjust the "yearly value" if monthly plans already existed
+annual_pay_adjustments AS (
+SELECT 
+  *,
+  LAG(plan_id, 1) OVER (
+    PARTITION BY customer_id
+    ORDER BY start_date
+  ) AS last_payment_plan,
+  LAG(amount, 1) OVER (
+    PARTITION BY customer_id
+    ORDER BY start_date
+  ) AS last_amount_paid,
+  RANK() OVER (
+    PARTITION BY customer_id
+    ORDER BY start_date
+  ) AS payment_order
+  FROM recursive_date_cte
+  ORDER BY customer_id, start_date
+)
+SELECT
+  customer_id, plan_id, plan_name, start_date AS payment_date,
+  CASE
+    WHEN plan_id in (2, 3) AND last_payment_plan = 1
+      THEN amount - last_amount_paid
+    ELSE amount
+  END AS amount,
+  payment_order
+FROM annual_pay_adjustments;
+
+SELECT * FROM payments_2020;
+```
+![Pay Adjustments](Images/pay_adjust_cte.png)

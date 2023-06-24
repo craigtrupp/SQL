@@ -291,6 +291,9 @@ LIMIT 1;
 |---|
 |14.84|
 
+#### `Note on 4 & 5`
+* Have seen in the discord a different value for these particular answers but it appears to be with the way the "period" in between start dates between nodes is a leading cause. I'm defining the in between period as the date between each start dates. Using a `Lead` function call over the partitioned/grouped and ordered (start_date) I'm pulling the next start date for a customers as the days in between nodes the value appears to be looking for. In truth this would likely be an easier metric to have clearly defined as what consitutes as the period in between
+ 
 <br>
 
 **5.** What is the median, 80th and 95th percentile for this same reallocation days metric for each region?
@@ -336,3 +339,247 @@ ORDER BY tdbn.region_id;
 |3|Africa|15|24|28|
 |4|Asia|15|23|28|
 |5|Europe|15|24|29|
+
+<br>
+
+#### `B : Customer Transactions`
+**1.** What is the unique count and total amount for reach transaction type
+```sql
+-- What is the unique count and total amount for each transaction type?
+SELECT
+  txn_type,
+  COUNT(*) AS txn_type_count,
+  SUM(txn_amount) AS total_sum_txn_type
+FROM data_bank.customer_transactions
+GROUP BY txn_type
+ORDER BY txn_type_count, total_sum_txn_type;
+```
+|txn_type|txn_type_count|total_sum_txn_type|
+|----|----|-----|
+|withdrawal|1580|793003|
+|purchase|1617|806537|
+|deposit|2671|1359168|
+
+<br>
+
+**2.** What is the average total historical deposit counts and amounts for all customers?
+```sql
+WITH avg_deposit_details AS (
+SELECT
+  customer_id,
+  COUNT(*) AS customer_total_deposits,
+  ROUND(AVG(txn_amount), 2) AS customer_deposit_average
+FROM data_bank.customer_transactions
+WHERE txn_type = 'deposit'
+GROUP BY customer_id
+ORDER BY customer_id
+)
+SELECT
+  ROUND(AVG(customer_total_deposits),1) AS Avg_Deposit_Counts,
+  ROUND(AVG(customer_deposit_average),2) AS Avg_Deposit_Amount,
+  ROUND(AVG(customer_deposit_average)) AS Avg_Rounded_Up
+FROM avg_deposit_details;
+```
+|avg_deposit_counts|avg_deposit_amount|avg_rounded_up|
+|------|-----|-----|
+|5.3|508.61|509|
+
+<br>
+
+**3.** For each month - how many Data Bank customers make more than 1 deposit and (either 1 purchase or 1 withdrawal) in a single month?
+* Now this is just an initial look at grouping, to get a column for each customer's transaction type per month, we'll want to use a SUM case when for all transaction types
+  * Below is Initially just a look at how grouping by month can work for a customer
+```sql
+WITH customer_monthly_trax_counts AS (
+SELECT 
+  customer_id,
+  DATE_TRUNC('MONTH', txn_date)::DATE AS month_trax_date,
+  txn_type AS txn_type,
+  COUNT(*) AS total_customer_monthy_txn_counts
+FROM data_bank.customer_transactions
+GROUP BY customer_id, month_trax_date, txn_type
+ORDER BY customer_id, month_trax_date, txn_type
+)
+SELECT *
+FROM customer_monthly_trax_counts
+WHERE customer_id = 1;
+```
+|customer_id|month_trax_date|txn_type|total_customer_monthy_txn_counts|
+|----|----|----|----|
+|1|2020-01-01|deposit|1|
+|1|2020-03-01|deposit|1|
+|1|2020-03-01|purchase|2|
+
+* Now let's use a column type approach for each transaction type for easier filtering later down the line
+```sql
+WITH customer_monthly_trax_counts AS (
+SELECT 
+  customer_id,
+  DATE_TRUNC('MONTH', txn_date)::DATE AS month_trax_date,
+  SUM(CASE WHEN txn_type = 'deposit' THEN 1 ELSE 0 END) AS monthly_deposits,
+  SUM(CASE WHEN txn_type = 'purchase' THEN 1 ELSE 0 END) AS monthly_purchases,
+  SUM(CASE WHEN txn_type = 'withdrawal' THEN 1 ELSE 0 END) AS monthly_withdrawals
+FROM data_bank.customer_transactions
+GROUP BY customer_id, month_trax_date
+ORDER BY customer_id, month_trax_date
+),
+customer_months_criteria AS (
+SELECT *
+FROM customer_monthly_trax_counts
+WHERE monthly_deposits >= 2 AND (monthly_purchases >= 1 OR monthly_withdrawals >= 1)
+)
+SELECT * FROM customer_months_criteria LIMIT 5;
+```
+|customer_id|month_trax_date|monthly_deposits|monthly_purchases|monthly_withdrawals|
+|---|----|-----|----|-----|
+|5|2020-01-01|2|0|1|
+|5|2020-03-01|2|3|2|
+|6|2020-01-01|2|4|0|
+|6|2020-02-01|2|1|1|
+|6|2020-03-01|5|1|3|
+
+* Ok so now we just need to GROUP BY the month_trax_date 
+
+```sql
+WITH customer_monthly_trax_counts AS (
+SELECT 
+  customer_id,
+  DATE_TRUNC('MONTH', txn_date)::DATE AS month_trax_date,
+  SUM(CASE WHEN txn_type = 'deposit' THEN 1 ELSE 0 END) AS monthly_deposits,
+  SUM(CASE WHEN txn_type = 'purchase' THEN 1 ELSE 0 END) AS monthly_purchases,
+  SUM(CASE WHEN txn_type = 'withdrawal' THEN 1 ELSE 0 END) AS monthly_withdrawals
+FROM data_bank.customer_transactions
+GROUP BY customer_id, month_trax_date
+ORDER BY customer_id, month_trax_date
+),
+customer_months_criteria AS (
+SELECT *
+FROM customer_monthly_trax_counts
+WHERE monthly_deposits >= 2 AND (monthly_purchases >= 1 OR monthly_withdrawals >= 1)
+)
+SELECT
+  month_trax_date,
+  COUNT(*) AS customer_condition_monthly_count
+FROM customer_months_criteria
+GROUP BY month_trax_date
+ORDER BY month_trax_date;
+```
+|month_trax_date|customer_condition_monthly_count|
+|-----|----|
+|2020-01-01|168|
+|2020-02-01|181|
+|2020-03-01|192|
+|2020-04-01|70|
+
+<br>
+
+**4.** What is the closing balance for each customer at the end of the month?
+* Had a little help on this one but importantly we can see how to generate a series for this type check as we'll need conditions to account for no activity in a month which is our group by transaction types has shown us for each customer
+* To tackle this we can use a nifty `GENERATE_SERIES` here for the period of dates we've seen (Jan - April date)
+
+<br>
+
+  1. So we can start by using a SUM case and grouping by the customer, date and inverse the txn_amount as a balance depleter should the type be a withdrawal or purchase to get a monthly balance without any run over (so just found data initially for each customer)
+```sql
+WITH customer_monthly_balance AS (
+SELECT 
+  customer_id,
+  DATE_TRUNC('MONTH', txn_date)::DATE AS transaction_month,
+  SUM(
+    CASE WHEN txn_type = 'deposit' THEN txn_amount
+    -- Invert the txn amount to negative for withdrawal or purchase
+    ELSE (-txn_amount)
+    END
+  ) AS balance
+FROM data_bank.customer_transactions
+GROUP BY customer_id, transaction_month
+ORDER BY customer_id, transaction_month
+)
+SELECT * FROM customer_monthly_balance LIMIT 5;
+```
+|customer_id|transaction_month|balance|
+|----|----|-----|
+|1|2020-01-01|312|
+|1|2020-03-01|-952|
+|2|2020-01-01|549|
+|2|2020-03-01|61|
+|3|2020-01-01|144|
+
+  2. Next ... we need to generate a `template` type monthly value for each customer and set the intervale 1 month ahead at the start of the date to later match to the transaction_month (think a `LEFT TYPE JOIN` for the customer balance above if we find cusotmer data for the month for the logic)
+```sql
+SELECT
+    DISTINCT customer_id,
+    (
+      '2020-01-01'::DATE +
+      GENERATE_SERIES(0, 3) * INTERVAL '1 MONTH'
+    )::DATE AS month
+  FROM data_bank.customer_transactions
+  ORDER BY customer_id, month
+  LIMIT 8
+```
+|customer_id|month|
+|----|----|
+|1|2020-01-01|
+|1|2020-02-01|
+|1|2020-03-01|
+|1|2020-04-01|
+|2|2020-01-01|
+|2|2020-02-01|
+|2|2020-03-01|
+|2|2020-04-01|
+
+  3. Now, we'll want to use the `COALESCE` function to either take the balance or set a null value for the overall balance when using the first cte table in a left style join with our months for each customer. Following determining if the customer has a monthly balance found for the quarter month period, we'll use a `WINDOW SUM` function over the created balance in the first cte (and completed value with a SELECT function (COALESCE)) and use a range partitioned for the `customer` and `ordered` by the month with the customer, monthly window stretching from unbounded preceding (all found rows for customer) and to the current row to get the balance based on a historical look. The `customer month` and `customer id` we'll use as the joining logic in the two ctes as to join what we can find for customer behavior and what we'll need to impute (fillna more or less) for missing customer data
+```sql
+WITH customer_monthly_balance AS (
+SELECT 
+  customer_id,
+  DATE_TRUNC('MONTH', txn_date)::DATE AS transaction_month,
+  SUM(
+    CASE WHEN txn_type = 'deposit' THEN txn_amount
+    -- Invert the txn amount to negative for withdrawal or purchase
+    ELSE (-txn_amount)
+    END
+  ) AS balance
+FROM data_bank.customer_transactions
+GROUP BY customer_id, transaction_month
+ORDER BY customer_id, transaction_month
+),
+quarter_data_period_per_customer AS (
+SELECT
+  DISTINCT(customer_id),
+  ('2020-01-01'::DATE + GENERATE_SERIES(0, 3) * INTERVAL '1 MONTH')::DATE AS generated_month
+  FROM data_bank.customer_transactions
+)
+SELECT
+  qdppc.customer_id customer_id,
+  qdppc.generated_month AS month,
+  -- Either take found value or if not exists (no customer account transaction activity for month) set to 0
+  COALESCE(cmb.balance, 0) AS balance_monthly_activity,
+  SUM(cmb.balance) OVER (
+    PARTITION BY qdppc.customer_id
+    ORDER BY qdppc.generated_month
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS ending_month_balance
+FROM quarter_data_period_per_customer AS qdppc
+LEFT JOIN customer_monthly_balance as cmb 
+  ON qdppc.customer_id = cmb.customer_id
+  AND qdppc.generated_month = cmb.transaction_month
+-- We'll only get the first three customers
+WHERE qdppc.customer_id <= 3;
+```
+|customer_id|month|balance_monthly_activity|ending_month_balance|
+|-----|----|-----|-----|
+|1|2020-01-01|312|312|
+|1|2020-02-01|0|312|
+|1|2020-03-01|-952|-640|
+|1|2020-04-01|0|-640|
+|2|2020-01-01|549|549|
+|2|2020-02-01|0|549|
+|2|2020-03-01|61|610|
+|2|2020-04-01|0|610|
+|3|2020-01-01|144|144|
+|3|2020-02-01|-965|-821|
+|3|2020-03-01|-401|-1222|
+|3|2020-04-01|493|-729|
+
+* Confirming that the Execution order and the filling of the balance field is set prior to the window function being able to operated on as the balance field were calling a cumulative sum on for the customer isn't going to always have a balance for the month which is just their monthly balance activity for found activity in the month which not all users have.

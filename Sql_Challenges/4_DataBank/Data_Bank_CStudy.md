@@ -583,3 +583,193 @@ WHERE qdppc.customer_id <= 3;
 |3|2020-04-01|493|-729|
 
 * Confirming that the Execution order and the filling of the balance field is set prior to the window function being able to operated on as the balance field were calling a cumulative sum on for the customer isn't going to always have a balance for the month which is just their monthly balance activity for found activity in the month which not all users have.
+
+<br>
+
+**5.** Comparing the closing balance of a customer’s first month and the closing balance from their second month, what percentage of customers:
+* Have a negative first month balance?
+* Have a positive first month balance?
+* Increase their opening month’s positive closing balance by more than 5% in the following month?
+* Reduce their opening month’s positive closing balance by more than 5% in the following month?
+* Move from a positive balance in the first month to a negative balance in the second month?
+
+This is gonna be a pretty complex level of `CTEs` which is more instructive in looking at output by output to build the final result which is going to be a percentage for each column in a one row answer for the above
+
+|positive_pc|negative_pc|increase_pc|decrease_pc|negative_balance_pc|
+|----|----|----|----|----|
+|68.00|31.00|37.00|49.00|33.00|
+
+- `Part 1 `
+  * Add the lag values for the balance of first and secondth month
+```sql
+WITH cte_monthly_balances AS (
+SELECT
+  customer_id,
+  DATE_TRUNC('Month', txn_date)::DATE as month,
+  SUM(
+    CASE 
+      WHEN txn_type = 'deposit' THEN txn_amount
+      ELSE (-txn_amount)
+      END
+  ) AS monthly_activity
+FROM data_bank.customer_transactions
+GROUP BY customer_id, month
+ORDER BY customer_id, month
+),
+cte_generated_months AS (
+  SELECT
+    DISTINCT customer_id,
+    (
+      DATE_TRUNC('mon', MIN(txn_date))::DATE +
+      GENERATE_SERIES(0, 1) * INTERVAL '1 MONTH'
+    )::DATE AS month,
+    GENERATE_SERIES(1, 2) AS month_number
+  FROM data_bank.customer_transactions
+  GROUP BY customer_id
+  ORDER BY customer_id
+),
+cte_monthly_transactions AS (
+  SELECT
+    cte_generated_months.customer_id,
+    cte_generated_months.month,
+    cte_generated_months.month_number,
+    COALESCE(cte_monthly_balances.monthly_activity, 0) AS transaction_amount
+  FROM cte_generated_months
+  LEFT JOIN cte_monthly_balances
+    ON cte_generated_months.month = cte_monthly_balances.month
+    AND cte_generated_months.customer_id = cte_monthly_balances.customer_id
+  ORDER BY customer_id, month, month_number
+),
+cte_monthly_aggregates AS (
+SELECT
+  customer_id,
+  month_number,
+  LAG(transaction_amount) OVER (
+    PARTITION BY customer_id
+    ORDER BY month
+  ) AS prev_month_transaction_amount,
+  transaction_amount as monthly_activity
+FROM cte_monthly_transactions
+)
+SELECT * FROM cte_monthly_aggregates LIMIT 10;
+```
+|customer_id|month_number|prev_month_transaction_amount|monthly_activity|
+|-----|-----|-----|-----|
+|1|1|null|312|
+|1|2|312|0|
+|2|1|null|549|
+|2|2|549|0|
+|3|1|null|144|
+|3|2|144|-965|
+|4|1|null|848|
+|4|2|848|0|
+|5|1|null|954|
+|5|2|954|0|
+
+* Next, we'll look to just limit the calculations and get a SUM or total count for each metric (see 5 requested above) for our total counts and then can use a distinct count for our total customer count to capture percentages on from the generated sum per customer metric. Please see the notes in the conditional `SUM(CASE)` statements for how the metrics where decided for a customer qualifying as fitting for the 5 conditions
+
+```sql
+-- Let's create what the customers have first
+WITH cte_monthly_balances AS (
+SELECT
+  customer_id,
+  DATE_TRUNC('Month', txn_date)::DATE as month,
+  SUM(
+    CASE 
+      WHEN txn_type = 'deposit' THEN txn_amount
+      ELSE (-txn_amount)
+      END
+  ) AS monthly_activity
+FROM data_bank.customer_transactions
+GROUP BY customer_id, month
+ORDER BY customer_id, month
+),
+cte_generated_months AS (
+  SELECT
+    DISTINCT customer_id,
+    (
+      DATE_TRUNC('mon', MIN(txn_date))::DATE +
+      GENERATE_SERIES(0, 1) * INTERVAL '1 MONTH'
+    )::DATE AS month,
+    GENERATE_SERIES(1, 2) AS month_number
+  FROM data_bank.customer_transactions
+  GROUP BY customer_id
+  ORDER BY customer_id
+),
+cte_monthly_transactions AS (
+  SELECT
+    cte_generated_months.customer_id,
+    cte_generated_months.month,
+    cte_generated_months.month_number,
+    COALESCE(cte_monthly_balances.monthly_activity, 0) AS transaction_amount
+  FROM cte_generated_months
+  LEFT JOIN cte_monthly_balances
+    ON cte_generated_months.month = cte_monthly_balances.month
+    AND cte_generated_months.customer_id = cte_monthly_balances.customer_id
+  ORDER BY customer_id, month, month_number
+),
+cte_monthly_aggregates AS (
+SELECT
+  customer_id,
+  month_number,
+  LAG(transaction_amount) OVER (
+    PARTITION BY customer_id
+    ORDER BY month
+  ) AS prev_month_transaction_amount,
+  transaction_amount as monthly_activity
+FROM cte_monthly_transactions
+),
+cte_calcs AS (
+SELECT 
+  -- we'll use this value for our percentages in the last query for total numbers
+  COUNT(DISTINCT customer_id) AS customer_count,
+  -- Calculate 5 different metrics
+  SUM(CASE WHEN prev_month_transaction_amount > 0 THEN 1 ELSE 0 END) AS total_positive_first_month_balances,
+  SUM(CASE WHEN prev_month_transaction_amount < 0 THEN 1 ELSE 0 END) AS total_negative_first_month_balances,
+  -- Increase their opening month’s positive closing balance by more than 5% in the following month?, positive past_month, posivite activity and previous + .05% < new activity
+  SUM(
+    CASE 
+      WHEN prev_month_transaction_amount > 0
+        AND monthly_activity > 0
+        AND (prev_month_transaction_amount * 0.05) + prev_month_transaction_amount < monthly_activity 
+        THEN 1
+      ELSE 0
+    END
+  ) AS increase_count_greater_5_percent,
+  -- Reduce their opening month’s positive closing balance by more than 5% in the following month, activity must be negative and previous month must be positive
+  SUM(
+    CASE 
+      WHEN prev_month_transaction_amount > 0
+        AND monthly_activity < 0
+        -- we want to now see if the 5% inversed is still less than the monthly_activity which will determine if the drop was more than 5%
+        AND (-(prev_month_transaction_amount * .05) < monthly_activity)
+        THEN 1
+      ELSE 0
+    END
+  ) AS decrease_count_greater_5_percent,
+  -- Move from a positive balance in the first month to a negative balance in the second month, most importantly is the monthly value being less than the inverse of the posivie month value for a deficit or negative count
+  SUM(
+    CASE 
+      WHEN prev_month_transaction_amount > 0 
+        AND monthly_activity < 0 
+        AND monthly_activity < (-prev_month_transaction_amount) -- Must validate that the negative monthly activity is also less than what the inverse of the positive amount
+        THEN 1 
+      ELSE 0
+    END
+  ) AS negative_balance_counts_after_positive_first
+FROM cte_monthly_aggregates
+-- Essentially we just want to look at the last row for each customer which holds the previous month value and the activity for the 2nd month we use for our metrics
+WHERE prev_month_transaction_amount IS NOT NULL
+)
+SELECT
+  -- we'll round each 
+  ROUND(100 * (total_positive_first_month_balances/customer_count::NUMERIC)) AS positive_first_month_balance_percentage,
+  ROUND(100 * (total_negative_first_month_balances/customer_count::NUMERIC)) AS negative_first_month_balance_percentage,
+  ROUND(100 * (increase_count_greater_5_percent/customer_count::NUMERIC)) AS increase_greater_than_5_percentage,
+  ROUND(100 * (decrease_count_greater_5_percent/customer_count::NUMERIC)) AS decrease_greater_than_5_percentage,
+  ROUND(100 * (negative_balance_counts_after_positive_first/customer_count::NUMERIC)) AS positive_to_negative_percentage
+FROM cte_calcs
+```
+|positive_first_month_balance_percentage|negative_first_month_balance_percentage|increase_greater_than_5_percentage|decrease_greater_than_5_percentage|positive_to_negative_percentage|
+|-----|----|----|----|-----|
+|69|31|13|1|23|

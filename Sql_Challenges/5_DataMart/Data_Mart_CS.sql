@@ -1,0 +1,128 @@
+-- Case Study Sql items for reference
+
+-- A : Data Clensing (See Markdown File for Further Reference If Needed)
+DROP TABLE IF EXISTS data_mart.clean_weekly_sales;
+CREATE TABLE data_mart.clean_weekly_sales AS
+SELECT
+  TO_DATE(week_date, 'DD/MM/YY') AS week_date,
+  DATE_PART('week', TO_DATE(week_date, 'DD/MM/YY')) AS week_number,
+  DATE_PART('month', TO_DATE(week_date, 'DD/MM/YY')) AS month_number,
+  DATE_PART('year', TO_DATE(week_date, 'DD/MM/YY')) AS calendar_year,
+  region,
+  platform,
+  CASE
+    WHEN segment = 'null' THEN 'Unknown'
+    ELSE segment
+    END AS segment,
+  CASE
+    WHEN LEFT(segment, 1) = '1' THEN 'Young Adults'
+    WHEN LEFT(segment, 1) = '2' THEN 'Middle Aged'
+    WHEN LEFT(segment, 1) IN ('3', '4') THEN 'Retirees'
+    ELSE 'Unknown'
+    END AS age_band,
+  CASE
+    WHEN RIGHT(segment, 1) = 'C' THEN 'Couples'
+    WHEN RIGHT(segment, 1) = 'F' THEN 'Families'
+    ELSE 'Unknown'
+    END AS demographic,
+  customer_type,
+  transactions,
+  sales,
+  ROUND(
+      sales / transactions,
+      2
+   ) AS avg_transaction
+FROM data_mart.weekly_sales;
+
+-- Data Matching UNION ALL to validate total new rows in old table match new cleaned table in schema
+SELECT
+    COUNT(*) AS total_rows
+FROM data_mart.weekly_sales
+UNION ALL
+SELECT
+    COUNT(*) AS total_rows
+FROM data_mart.clean_weekly_sales;
+-- |total_rows|
+-- |----|
+-- |17117|
+-- |17117|
+
+
+-- B : Data Exploration - See Markdown for further context on questions (table outputs), 
+-- only queries here!!!
+
+-- 1
+-- In theory this is what we can't do but return corrects for Each
+SELECT 
+  DISTINCT(TO_CHAR(week_date, 'Day')) AS Unique_Day_Name
+FROM data_mart.clean_weekly_sales
+UNION
+SELECT
+  DISTINCT(EXTRACT(dow FROM week_date)) AS Unique_Day_Value
+FROM data_mart.clean_weekly_sales;
+
+-- Above causes and error but in reality what were kinda looking for (can't union different data types!!!)
+
+WITH unique_day_counts AS (
+-- Each row will give us the day_name and the integer value associated to it 
+SELECT
+  (SELECT DISTINCT(TO_CHAR(week_date, 'Day'))) AS Unique_Day_Name,
+  (SELECT DISTINCT(EXTRACT(dow FROM week_date))) AS Unique_Day_Value
+FROM data_mart.clean_weekly_sales
+)
+-- Now just a generic count after grouping
+SELECT
+  Unique_Day_Name,
+  Unique_Day_Value,
+  COUNT(*) AS total_day_line_counts
+FROM unique_day_counts
+GROUP BY Unique_Day_Name, Unique_Day_Value
+ORDER BY total_day_line_counts DESC;
+
+
+
+-- 2
+WITH total_weeks AS (
+SELECT
+  GENERATE_SERIES(1,52) AS week_number
+)
+SELECT
+  week_number AS unique_week_numbers_not_included
+FROM total_weeks
+WHERE week_number NOT IN (SELECT DISTINCT(week_number) FROM data_mart.clean_weekly_sales)
+ORDER BY unique_week_numbers_not_included;
+
+-- Another fashion
+WITH all_week_numbers AS ( 
+  SELECT GENERATE_SERIES(1, 52) AS week_number
+)
+SELECT
+  week_number
+FROM all_week_numbers AS t1
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM data_mart.clean_weekly_sales AS t2
+  WHERE t1.week_number = t2.week_number 
+);
+
+-- 3
+SELECT
+  calendar_year,
+  SUM(transactions) AS year_total_transactions,
+  SUM(SUM(transactions)) OVER() AS total_years_summed_transactions_window
+FROM data_mart.clean_weekly_sales
+GROUP BY calendar_year
+ORDER BY year_total_transactions DESC;
+
+
+
+-- 4 
+-- Using TO_CHAR to get the month name for easier association
+SELECT
+  month_number,
+  TO_CHAR(week_date, 'Month') AS month_name,
+  region,
+  SUM(sales) AS month_total_sales_over_years
+FROM data_mart.clean_weekly_sales
+GROUP BY month_number, month_name, region
+ORDER BY region, month_number;

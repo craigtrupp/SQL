@@ -52,7 +52,7 @@ The columns are pretty self-explanatory based on the column names but here are s
 
 Each record in the dataset is related to a specific aggregated slice of the underlying sales data rolled up into a week_date value which represents the start of the sales week.
 
-* Example Rows
+* `Example Rows` : Uncleaned Provided Weekly_Sales Table
 ```sql
 SELECT * 
 FROM data_mart.weekly_sales
@@ -120,10 +120,10 @@ In a single query, perform the following operations and generate a new table in 
 ##### **Date_Parts**
 ```sql
 SELECT 
-  TO_DATE(week_date, 'DD/M/YY') AS week_date,
-  DATE_PART('week', TO_DATE(week_date, 'DD/M/YY')) AS week_number,
-  DATE_PART('month', TO_DATE(week_date, 'DD/M/YY')) AS month_number,
-  DATE_PART('year', TO_DATE(week_date, 'DD/M/YY')) AS calendar_year
+  TO_DATE(week_date, 'DD/MM/YY') AS week_date,
+  DATE_PART('week', TO_DATE(week_date, 'DD/MM/YY')) AS week_number,
+  DATE_PART('month', TO_DATE(week_date, 'DD/MM/YY')) AS month_number,
+  DATE_PART('year', TO_DATE(week_date, 'DD/MM/YY')) AS calendar_year
 FROM data_mart.weekly_sales
 WHERE week_date < '20219-01-01'
 ORDER BY week_date DESC
@@ -135,10 +135,13 @@ LIMIT 5;
 |2020-01-18|3|1|2020|
 |2020-01-18|3|1|2020|
 |2020-01-18|3|1|2020|
-|2020-01-18|3|1|2020|
+|2020-08-31|3|1|2020|
 
 * The Date string being mutated in the `TO_DATE` call takes the string **week_date** value (varchar as seen in the data columns) and a **format** to mutate from
 * After setting the varchar to a date type, we can than use `DATE_PART` and a time value to extract to get the **week, month and calendar year** as requested
+* **Note** : value for `TO_DATE` needed to be changed in order to get recognizable date value back
+    - Good reference for next time when evaluating `DATE` type casting returns
+    - **Previous : 'DD/M/YY'** value for string which was giving different dates (or standardized date in which the uncleaned orders table had )
 
 <br>
 
@@ -270,10 +273,212 @@ SELECT * FROM data_mart.clean_weekly_sales LIMIT 5;
 |2020-08-31|36|8|2020|EUROPE|Retail|C1|Young Adults|Couples|New|4517|141942|31.00|
 |2020-08-31|36|8|2020|AFRICA|Retail|C2|Middle Aged|Couples|New|58046|1758388|30.00|
 
+* Let's Before we move ensure we have the same count of rows in each table and haven't had any data leakage!
+```sql
+-- Make sure to do a union all as a union would return almost a join (equal values)
+SELECT
+    COUNT(*) AS total_rows
+FROM data_mart.weekly_sales
+UNION ALL
+SELECT
+    COUNT(*) AS total_rows
+FROM data_mart.clean_weekly_sales;
+```
+|total_rows|
+|----|
+|17117|
+|17117|
+
+* **Alright!**, we can move along
 
 <br>
 
 --- 
 
 ### `B : Data Exploration`
-**1.** What day of the week is used for each `week_date` value?
+**1.** What `day of the week` is used for each `week_date` value?
+```sql
+-- In theory this is what we can't do but return corrects for Each
+SELECT 
+  DISTINCT(TO_CHAR(week_date, 'Day')) AS Unique_Day_Name
+FROM data_mart.clean_weekly_sales
+UNION
+SELECT
+  DISTINCT(EXTRACT(dow FROM week_date)) AS Unique_Day_Value
+FROM data_mart.clean_weekly_sales;
+```
+* `UNION` types text and double precision cannot be matched
+    - One is an Int, one is a string
+```sql
+WITH unique_day_counts AS (
+-- Each row will give us the day_name and the integer value associated to it 
+SELECT
+  (SELECT DISTINCT(TO_CHAR(week_date, 'Day'))) AS Unique_Day_Name,
+  (SELECT DISTINCT(EXTRACT(dow FROM week_date))) AS Unique_Day_Value
+FROM data_mart.clean_weekly_sales
+)
+-- Now just a generic count after grouping
+SELECT
+  Unique_Day_Name,
+  Unique_Day_Value,
+  COUNT(*) AS total_day_line_counts
+FROM unique_day_counts
+GROUP BY Unique_Day_Name, Unique_Day_Value
+ORDER BY total_day_line_counts DESC;
+```
+|unique_day_name|unique_day_value|total_day_line_counts|
+|-----|-----|-----|
+|Monday|1|17117|
+
+* See the match in total rows (**total_day_line_counts**) as the rows for the table validates that indeed it is only ever `Monday` in which the base/parent table has ever had data inserted
+
+<br>
+
+**2.** What range of week numbers are missing from the dataset?
+```sql
+WITH total_weeks AS (
+SELECT
+  GENERATE_SERIES(1,52) AS week_number
+)
+SELECT
+  week_number AS unique_week_numbers_not_included
+FROM total_weeks
+WHERE week_number NOT IN (SELECT DISTINCT(week_number) FROM data_mart.clean_weekly_sales)
+ORDER BY unique_week_numbers_not_included;
+```
+|unique_week_numbers_not_included|
+|---|
+|1|
+|2|
+|3|
+|4|
+|5|
+|6|
+|7|
+|8|
+|9|
+|10|
+|11|
+|12|
+|37|
+|38|
+|39|
+|40|
+|41|
+|42|
+|43|
+|44|
+|45|
+|46|
+|47|
+|48|
+|49|
+|50|
+|51|
+|52|
+
+* 28 Rows for Week Numbers not included
+    - `GENERATE_SERIES` Used to create a number to compare against
+* Keyboard hot cut of : https://stackoverflow.com/questions/30037808/multiline-editing-in-visual-studio-code
+    - Option + Command and either up or down arrow
+* Another approach
+```sql
+WITH all_week_numbers AS ( 
+  SELECT GENERATE_SERIES(1, 52) AS week_number
+)
+SELECT
+  week_number
+FROM all_week_numbers AS t1
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM data_mart.clean_weekly_sales AS t2
+  WHERE t1.week_number = t2.week_number 
+);
+-- Can use the aliased week_number from CTE w/Generate Series to match against found week numbers and WHERE NOT EXISTS to get the missing week_numbers
+```
+
+<br>
+
+**3.** How many total transactions were there for each year in the dataset?
+```sql
+SELECT
+  calendar_year,
+  SUM(transactions) AS year_total_transactions,
+  SUM(SUM(transactions)) OVER() AS total_years_summed_transactions_window
+FROM data_mart.clean_weekly_sales
+GROUP BY calendar_year
+ORDER BY year_total_transactions DESC;
+```
+|calendar_year|year_total_transactions|total_years_summed_transactions_window|
+|----|-----|-----|
+|2020|375813651|1087859396|
+|2019|365639285|1087859396|
+|2018|346406460|1087859396|
+
+* `SUM(SUM(column))` Can provide the window sum after getting an aggregate for different grouped/partitioned groups
+
+<br>
+
+**4.** What is the total sales for each region for each month?
+```sql
+-- Using TO_CHAR to get the month name for easier association
+SELECT
+  month_number,
+  TO_CHAR(week_date, 'Month') AS month_name,
+  region,
+  SUM(sales) AS month_total_sales_over_years
+FROM data_mart.clean_weekly_sales
+GROUP BY month_number, month_name, region
+ORDER BY region, month_number;
+```
+|month_number|month_name|region|month_total_sales_over_years|
+|----|-----|-----|------|
+|3|March|AFRICA|567767480|
+|4|April|AFRICA|1911783504|
+|5|May|AFRICA|1647244738|
+|6|June|AFRICA|1767559760|
+|7|July|AFRICA|1960219710|
+|8|August|AFRICA|1809596890|
+|9|September|AFRICA|276320987|
+|3|March|ASIA|529770793|
+|4|April|ASIA|1804628707|
+|5|May|ASIA|1526285399|
+|6|June|ASIA|1619482889|
+|7|July|ASIA|1768844756|
+|8|August|ASIA|1663320609|
+|9|September|ASIA|252836807|
+|3|March|CANADA|144634329|
+|4|April|CANADA|484552594|
+|5|May|CANADA|412378365|
+|6|June|CANADA|443846698|
+|7|July|CANADA|477134947|
+|8|August|CANADA|447073019|
+|9|September|CANADA|69067959|
+|3|March|EUROPE|35337093|
+|4|April|EUROPE|127334255|
+|5|May|EUROPE|109338389|
+|6|June|EUROPE|122813826|
+|7|July|EUROPE|136757466|
+|8|August|EUROPE|122102995|
+|9|September|EUROPE|18877433|
+|3|March|OCEANIA|783282888|
+|4|April|OCEANIA|2599767620|
+|5|May|OCEANIA|2215657304|
+|6|June|OCEANIA|2371884744|
+|7|July|OCEANIA|2563459400|
+|8|August|OCEANIA|2432313652|
+|9|September|OCEANIA|372465518|
+|3|March|SOUTH AMERICA|71023109|
+|4|April|SOUTH AMERICA|238451531|
+|5|May|SOUTH AMERICA|201391809|
+|6|June|SOUTH AMERICA|218247455|
+|7|July|SOUTH AMERICA|235582776|
+|8|August|SOUTH AMERICA|221166052|
+|9|September|SOUTH AMERICA|34175583|
+|3|March|USA|225353043|
+|4|April|USA|759786323|
+|5|May|USA|655967121|
+|6|June|USA|703878990|
+|7|July|USA|760331754|
+|8|August|USA|712002790|
+|9|September|USA|110532368|

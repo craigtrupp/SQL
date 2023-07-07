@@ -219,40 +219,61 @@ So with a decent exploratory look at generating the new table for the schema, le
 #### **New Schema Table Creation**
 ```sql
 DROP TABLE IF EXISTS data_mart.clean_weekly_sales;
-CREATE TABLE data_mart.clean_weekly_sales AS 
+CREATE TABLE data_mart.clean_weekly_sales AS
 SELECT
-  TO_DATE(week_date, 'DD/M/YY') AS week_date,
-  DATE_PART('week', TO_DATE(week_date, 'DD/M/YY')) AS week_number,
-  DATE_PART('month', TO_DATE(week_date, 'DD/M/YY')) AS month_number,
-  DATE_PART('year', TO_DATE(week_date, 'DD/M/YY')) AS calendar_year,
+  TO_DATE(week_date, 'DD/MM/YY') AS week_date,
+  DATE_PART('week', TO_DATE(week_date, 'DD/MM/YY')) AS week_number,
+  DATE_PART('month', TO_DATE(week_date, 'DD/MM/YY')) AS month_number,
+  DATE_PART('year', TO_DATE(week_date, 'DD/MM/YY')) AS calendar_year,
   region,
   platform,
-  COALESCE(segment, 'unknown') AS segment,
   CASE
-    WHEN RIGHT(segment, 1) = '1' THEN 'Young Adults'
-    WHEN RIGHT(segment, 1) = '2' THEN 'Middle Aged'
-    WHEN RIGHT(segment, 1) in ('3', '4') THEN 'Retirees'
-    ELSE 'unknown'
-  END AS age_band,
+    WHEN segment = 'null' THEN 'Unknown'
+    ELSE segment
+    END AS segment,
   CASE
-    WHEN LEFT(segment, 1) = 'C' THEN 'Couples'
-    WHEN LEFT(segment, 1) = 'F' THEN 'Families'
-    ELSE 'unknown'
-  END AS demographic,
+    WHEN LEFT(segment, 1) = '1' THEN 'Young Adults'
+    WHEN LEFT(segment, 1) = '2' THEN 'Middle Aged'
+    WHEN LEFT(segment, 1) IN ('3', '4') THEN 'Retirees'
+    ELSE 'Unknown'
+    END AS age_band,
+  CASE
+    WHEN RIGHT(segment, 1) = 'C' THEN 'Couples'
+    WHEN RIGHT(segment, 1) = 'F' THEN 'Families'
+    ELSE 'Unknown'
+    END AS demographic,
   customer_type,
   transactions,
   sales,
-  ROUND(sales/transactions, 2) AS avg_transaction
-FROM data_mart.weekly_sales
+  ROUND(
+      sales / transactions,
+      2
+   ) AS avg_transaction
+FROM data_mart.weekly_sales;
 
 
 -- AFTER CREATION, LET'S QUERY A FEW ROWS
 SELECT * FROM data_mart.clean_weekly_sales LIMIT 5;
 ```
--- So ... we'll put the table when we're not just on the labtop and can get a table readout a bit easier
-- But it works!
+* Arggghhh had messed up the date string for the `TO_DATE` function
+    - 'DD/M/YY' - was the previous string value prior to correcting and getting results consistent with detailed desired result (see value in table creation for reference of change ... a month can be more than one digit kapuhhh)
+    - https://www.commandprompt.com/education/postgresql-to_date-function-convert-string-to-date/
+    - When in doubt, review the above for the string classification of different potential date representation you want to mutate from a string/varchar
+
+* But now Here's a preview of our cleaned data
+
+|week_date|week_number|month_number|calendar_year|region|platform|segment|age_band|demographic|customer_type|transactions|sales|avg_transaction|
+|---|----|----|----|----|----|----|----|----|----|---|---|---|
+|2020-08-31|36|8|2020|ASIA|Retail|C3|Retirees|Couples|New|120631|3656163|30.00|
+|2020-08-31|36|8|2020|ASIA|Retail|F1|Young Adults|Families|New|31574|996575|31.00|
+|2020-08-31|36|8|2020|USA|Retail|null|unknown|unknown|Guest|529151|16509610|31.00|
+|2020-08-31|36|8|2020|EUROPE|Retail|C1|Young Adults|Couples|New|4517|141942|31.00|
+|2020-08-31|36|8|2020|AFRICA|Retail|C2|Middle Aged|Couples|New|58046|1758388|30.00|
+
 
 <br>
 
 --- 
 
+### `B : Data Exploration`
+**1.** What day of the week is used for each `week_date` value?

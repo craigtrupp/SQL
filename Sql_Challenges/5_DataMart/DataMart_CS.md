@@ -190,3 +190,69 @@ FROM regexp_matches
 * It's likely a fair bit more than we need but just wanted to have a bit of fun here. You can't index the matches for the unique segments column until after being generated in the second cte above
 
 <br>
+
+`Last items`
+* So we walso want the first value of the unique segments (C or F) as either couples or families for the demographic
+    - We can just use the `LEFT/RIGHT` to perform a type substring for segment to get the values at the start and end of the string we're after 
+```sql
+SELECT
+  LEFT(segment, 1) as left_1,
+  LEFT(segment, 2) as left_2,
+  RIGHT(segment, 1) AS reverse_left_1,
+  segment
+FROM data_mart.weekly_sales
+LIMIT 5;
+```
+|left_1|left_2|reverse_left_1|segment|
+|----|----|----|-----|
+|C|C3|3|C3|
+|F|F1|1|F1|
+|n|nu|l|null|
+|C|C1|1|C1|
+|C|C2|2|C2|
+
+* The avg_transaction just looks like a row type operation that we'll need to round.
+* We'll also include the columns in the table that didn't require cleansing
+
+So with a decent exploratory look at generating the new table for the schema, let's create!
+
+#### **New Schema Table Creation**
+```sql
+DROP TABLE IF EXISTS data_mart.clean_weekly_sales;
+CREATE TABLE data_mart.clean_weekly_sales AS 
+SELECT
+  TO_DATE(week_date, 'DD/M/YY') AS week_date,
+  DATE_PART('week', TO_DATE(week_date, 'DD/M/YY')) AS week_number,
+  DATE_PART('month', TO_DATE(week_date, 'DD/M/YY')) AS month_number,
+  DATE_PART('year', TO_DATE(week_date, 'DD/M/YY')) AS calendar_year,
+  region,
+  platform,
+  COALESCE(segment, 'unknown') AS segment,
+  CASE
+    WHEN RIGHT(segment, 1) = '1' THEN 'Young Adults'
+    WHEN RIGHT(segment, 1) = '2' THEN 'Middle Aged'
+    WHEN RIGHT(segment, 1) in ('3', '4') THEN 'Retirees'
+    ELSE 'unknown'
+  END AS age_band,
+  CASE
+    WHEN LEFT(segment, 1) = 'C' THEN 'Couples'
+    WHEN LEFT(segment, 1) = 'F' THEN 'Families'
+    ELSE 'unknown'
+  END AS demographic,
+  customer_type,
+  transactions,
+  sales,
+  ROUND(sales/transactions, 2) AS avg_transaction
+FROM data_mart.weekly_sales
+
+
+-- AFTER CREATION, LET'S QUERY A FEW ROWS
+SELECT * FROM data_mart.clean_weekly_sales LIMIT 5;
+```
+-- So ... we'll put the table when we're not just on the labtop and can get a table readout a bit easier
+- But it works!
+
+<br>
+
+--- 
+

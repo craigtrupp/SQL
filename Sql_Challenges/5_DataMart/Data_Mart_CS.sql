@@ -220,3 +220,52 @@ SELECT
   , 1) AS age_demo_percentage_ofsale
 FROM age_band_sales_rankings 
 ORDER BY demo_ageband_retail_sales_rankings;
+
+
+
+
+
+-- C : Before & After Analysis - See Markdown for further context on questions (table outputs), 
+-- only queries here!!!
+
+-- Here we are looking for sales period difference/totals over a weekly interval period with a provided cutoff week for before/after analysis
+WITH cutoff_week AS (
+SELECT DISTINCT week_number AS cutoff_week
+FROM data_mart.clean_weekly_sales 
+WHERE week_date = '2020-06-15'
+),
+-- let's look at generated series to get the 4 preceding and subsequent week_number int values
+preceding_subsequent_weeks AS (
+SELECT
+  cutoff_week,
+  GENERATE_SERIES(cutoff_week::INT - 4, cutoff_week::INT - 1) AS preceding_weeks,
+  GENERATE_SERIES(cutoff_week::INT + 1,  cutoff_week::INT + 4) AS subsequent_weeks
+FROM cutoff_week
+),
+-- total_sales
+total_pre_post_sales AS (
+SELECT
+-- Now we need to do a conditional summing based on the week values .. a little tricky but doable
+  SUM(CASE WHEN week_number in (SELECT preceding_weeks FROM preceding_subsequent_weeks) THEN sales END) AS preceding_weeks_sum,
+  SUM(CASE WHEN week_number in (SELECT subsequent_weeks FROM preceding_subsequent_weeks) THEN sales END) AS subsequent_weeks_sum
+FROM data_mart.clean_weekly_sales
+)
+SELECT 
+  *,
+  CASE
+    WHEN preceding_weeks_sum > subsequent_weeks_sum THEN 'Higher Sales in Preceding Period'
+    WHEN subsequent_weeks_sum > preceding_weeks_sum THEN 'Higher Sales in Subsequent Weeks'
+    ELSE 'Wow! Somehow the sales are the same'
+  END AS greater_sales_period,
+  CASE 
+    WHEN preceding_weeks_sum > subsequent_weeks_sum THEN preceding_weeks_sum - subsequent_weeks_sum
+    WHEN subsequent_weeks_sum > preceding_weeks_sum THEN subsequent_weeks_sum - preceding_weeks_sum
+    ELSE 0
+  END AS greater_sales_period_diff,
+  -- All branches of a CASE expression need to have the same type.
+  CASE
+    WHEN preceding_weeks_sum > subsequent_weeks_sum THEN TO_CHAR(ROUND(100 * (preceding_weeks_sum - subsequent_weeks_sum) / subsequent_weeks_sum::NUMERIC, 3), 'fm0D000%')
+    WHEN subsequent_weeks_sum > preceding_weeks_sum THEN TO_CHAR(ROUND(100 * (subsequent_weeks_sum - preceding_weeks_sum) / preceding_weeks_sum::NUMERIC, 3), 'fm0D000%')
+    ELSE TO_CHAR(0, 'fm0D000%') 
+  END as greater_sales_percentage
+FROM total_pre_post_sales;

@@ -173,3 +173,50 @@ SELECT
   ROUND(100 * (retail_monthly_sum / (retail_monthly_sum + shopify_monthly_sum)::NUMERIC), 2) AS retail_monthly_percentage,
   ROUND(100 * (shopify_monthly_sum / (retail_monthly_sum + shopify_monthly_sum)::NUMERIC), 2) AS shopify_monthly_percentage
 FROM monthly_platform_sales;
+
+
+-- 7
+-- Good way to use a window function to get a sum of a grouped by value we want to use as the base 
+-- sum to create percentages off with the general sum of the grouped by features
+SELECT
+  calendar_year,
+  demographic,
+  SUM(sales) AS yearly_sales,
+  -- We want to take the our summed sale value for the demo and divide by the sum of all the sum(sales) over a particular year
+  ROUND(
+  100 * (SUM(sales)::NUMERIC / SUM(SUM(sales)) OVER (
+    PARTITION BY calendar_year
+  )), 2) AS demo_sales_percentage_for_year
+FROM data_mart.clean_weekly_sales
+GROUP BY calendar_year, demographic
+ORDER BY calendar_year, demographic;
+
+
+-- 8 
+-- A bit going on with this one
+-- Essentially we rank by our first grouped by sum values
+-- Then we use the sum of all the grouped by sum in a window function to get their percentage
+WITH age_demographic_retail_sales AS (
+SELECT
+  age_band,
+  demographic,
+  SUM(sales) AS age_demo_sales
+FROM data_mart.clean_weekly_sales
+WHERE platform = 'Retail'
+GROUP BY age_band, demographic
+),
+age_band_sales_rankings AS (
+SELECT 
+  *,
+  RANK() OVER(
+    ORDER BY age_demo_sales DESC
+  ) AS demo_ageband_retail_sales_rankings
+FROM age_demographic_retail_sales
+)
+SELECT 
+  *,
+  ROUND(
+    100 * (age_demo_sales / SUM(age_demo_sales) OVER())
+  , 1) AS age_demo_percentage_ofsale
+FROM age_band_sales_rankings 
+ORDER BY demo_ageband_retail_sales_rankings;

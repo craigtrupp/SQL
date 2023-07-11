@@ -235,14 +235,14 @@ SELECT
     ELSE segment
     END AS segment,
   CASE
-    WHEN LEFT(segment, 1) = '1' THEN 'Young Adults'
-    WHEN LEFT(segment, 1) = '2' THEN 'Middle Aged'
-    WHEN LEFT(segment, 1) IN ('3', '4') THEN 'Retirees'
+    WHEN RIGHT(segment, 1) = '1' THEN 'Young Adults'
+    WHEN RIGHT(segment, 1) = '2' THEN 'Middle Aged'
+    WHEN RIGHT(segment, 1) IN ('3', '4') THEN 'Retirees'
     ELSE 'Unknown'
     END AS age_band,
   CASE
-    WHEN RIGHT(segment, 1) = 'C' THEN 'Couples'
-    WHEN RIGHT(segment, 1) = 'F' THEN 'Families'
+    WHEN LEFT(segment, 1) = 'C' THEN 'Couples'
+    WHEN LEFT(segment, 1) = 'F' THEN 'Families'
     ELSE 'Unknown'
     END AS demographic,
   customer_type,
@@ -555,4 +555,80 @@ FROM monthly_platform_sales;
 <br>
 
 
-**7.**
+**7.** What is the percentage of sales by demographic for each year in the dataset?
+* Most notable here is the setting of each demo_s year percentage
+* The Window function can do the sum chaining sum(sum(sales)) OVER(calendar_year) to get the entire year sum against the sum(sales) for our grouped by other materials
+  - Want to make sure you multiply by 100 after you get the fraction (was explicit with my operations)
+```sql
+SELECT
+  calendar_year,
+  demographic,
+  SUM(sales) AS yearly_sales,
+  -- We want to take the our summed sale value for the demo and divide by the sum of all the sum(sales) over a particular year
+  ROUND(
+  100 * (SUM(sales)::NUMERIC / SUM(SUM(sales)) OVER (
+    PARTITION BY calendar_year
+  )), 2) AS demo_sales_percentage_for_year
+FROM data_mart.clean_weekly_sales
+GROUP BY calendar_year, demographic
+ORDER BY calendar_year, demographic;
+```
+|calendar_year|demographic|yearly_sales|demo_sales_percentage_for_year|
+|----|----|-----|-----|
+|2018|Couples|3402388688|26.38|
+|2018|Families|4125558033|31.99|
+|2018|Unknown|5369434106|41.63|
+|2019|Couples|3749251935|27.28|
+|2019|Families|4463918344|32.47|
+|2019|Unknown|5532862221|40.25|
+|2020|Couples|4049566928|28.72|
+|2020|Families|4614338065|32.73|
+|2020|Unknown|5436315907|38.55|
+
+<br>
+
+**8.**
+* Get sale value for each `age_band`, `demographic` in first CTE for **Retail**
+* RANK by this aggregated group sum in most sales ranked higher **DESC**
+* take same `age_demo_sales` group by value and get percentage against sum of all of these values in a window function percentage finder for our original group_by summed values
+```sql
+WITH age_demographic_retail_sales AS (
+SELECT
+  age_band,
+  demographic,
+  SUM(sales) AS age_demo_sales
+FROM data_mart.clean_weekly_sales
+WHERE platform = 'Retail'
+GROUP BY age_band, demographic
+),
+age_band_sales_rankings AS (
+SELECT 
+  *,
+  RANK() OVER(
+    ORDER BY age_demo_sales DESC
+  ) AS demo_ageband_retail_sales_rankings
+FROM age_demographic_retail_sales
+)
+SELECT 
+  *,
+  ROUND(
+    100 * (age_demo_sales::NUMERIC / SUM(age_demo_sales) OVER())
+  , 1) AS age_demo_percentage_ofsale
+FROM age_band_sales_rankings 
+ORDER BY demo_ageband_retail_sales_rankings;
+```
+|age_band|demographic|age_demo_sales|demo_ageband_retail_sales_rankings|age_demo_percentage_ofsale|
+|----|----|----|-----|-----|
+|Unknown|Unknown|16067285533|1|40.5|
+|Retirees|Families|6634686916|2|16.7|
+|Retirees|Couples|6370580014|3|16.1|
+|Middle Aged|Families|4354091554|4|11.0|
+|Young Adults|Couples|2602922797|5|6.6|
+|Middle Aged|Couples|1854160330|6|4.7|
+|Young Adults|Families|1770889293|7|4.5|
+
+---
+
+<br>
+
+### `C: Before & After Analysis`

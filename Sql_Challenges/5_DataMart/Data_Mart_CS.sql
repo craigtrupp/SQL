@@ -126,3 +126,50 @@ SELECT
 FROM data_mart.clean_weekly_sales
 GROUP BY month_number, month_name, region
 ORDER BY region, month_number;
+
+
+-- 5
+-- Fairly Straight Forward
+SELECT
+  platform,
+  SUM(transactions) AS platform_total_transactions
+FROM data_mart.clean_weekly_sales
+GROUP BY platform
+ORDER BY platform_total_transactions DESC;
+
+
+-- 6
+-- A few queries here - most notably how to establish a sum row for 
+-- two group by features you want to compare
+
+-- First for 6 
+WITH monthly_platform_sales AS (
+SELECT
+  month_number,
+  TO_CHAR(week_date, 'MONTH') AS month_label,
+  platform,
+  SUM(sales)
+FROM data_mart.clean_weekly_sales
+GROUP BY month_number, month_label, platform
+ORDER BY month_number, month_label
+)
+SELECT * FROM monthly_platform_sales LIMIT 5;
+
+-- Second for 6 
+WITH monthly_platform_sales AS (
+SELECT
+  month_number,
+  TO_CHAR(week_date, 'MONTH') AS month_name,
+  calendar_year,
+  SUM(CASE WHEN platform = 'Retail' THEN sales END) AS retail_monthly_sum,
+  SUM(CASE WHEN platform = 'Shopify' THEN sales END) AS shopify_monthly_sum
+FROM data_mart.clean_weekly_sales
+GROUP BY month_number, month_name, calendar_year
+-- Order by calendar year oldest, to newest in sequential month order
+ORDER BY calendar_year, month_number
+)
+SELECT
+  *,
+  ROUND(100 * (retail_monthly_sum / (retail_monthly_sum + shopify_monthly_sum)::NUMERIC), 2) AS retail_monthly_percentage,
+  ROUND(100 * (shopify_monthly_sum / (retail_monthly_sum + shopify_monthly_sum)::NUMERIC), 2) AS shopify_monthly_percentage
+FROM monthly_platform_sales;

@@ -482,3 +482,77 @@ ORDER BY region, month_number;
 |7|July|USA|760331754|
 |8|August|USA|712002790|
 |9|September|USA|110532368|
+
+<br>
+
+**5.** What is the total count of transactions for each platform
+* ... Well pretty straightforward here
+```sql
+SELECT
+  platform,
+  SUM(transactions) AS platform_total_transactions
+FROM data_mart.clean_weekly_sales
+GROUP BY platform
+ORDER BY platform_total_transactions DESC;
+```
+|platform|platform_total_transactions|
+|----|-----|
+|Retail|1081934227|
+|Shopify|5925169|
+
+<br>
+
+**6.** What is the percentage of sales for Retail vs Shopify for each month?
+* Now we want the sum total on the same row so see the last query for how that would be done
+```sql
+WITH monthly_platform_sales AS (
+SELECT
+  month_number,
+  TO_CHAR(week_date, 'MONTH') AS month_label,
+  platform,
+  SUM(sales)
+FROM data_mart.clean_weekly_sales
+GROUP BY month_number, month_label, platform
+ORDER BY month_number, month_label
+)
+SELECT * FROM monthly_platform_sales LIMIT 5;
+```
+|month_number|month_label|platform|sum|
+|-----|----|----|----|
+|3|MARCH|Retail|2299188417|
+|3|MARCH|Shopify|57980318|
+|4|APRIL|Shopify|190712300|
+|4|APRIL|Retail|7735592234|
+|5|MAY|Retail|6585838223|
+
+
+
+```sql
+WITH monthly_platform_sales AS (
+SELECT
+  month_number,
+  TO_CHAR(week_date, 'MONTH') AS month_name,
+  calendar_year,
+  SUM(CASE WHEN platform = 'Retail' THEN sales END) AS retail_monthly_sum,
+  SUM(CASE WHEN platform = 'Shopify' THEN sales END) AS shopify_monthly_sum
+FROM data_mart.clean_weekly_sales
+GROUP BY month_number, month_name, calendar_year
+-- Order by calendar year oldest, to newest in sequential month order
+ORDER BY calendar_year, month_number
+)
+SELECT
+  *,
+  ROUND(100 * (retail_monthly_sum / (retail_monthly_sum + shopify_monthly_sum)::NUMERIC), 2) AS retail_monthly_percentage,
+  ROUND(100 * (shopify_monthly_sum / (retail_monthly_sum + shopify_monthly_sum)::NUMERIC), 2) AS shopify_monthly_percentage
+FROM monthly_platform_sales;
+```
+
+![Table Output](images/B_6_Output.png)
+
+* Most notable here in the format is the ability to sum two different group objects and place on the same row for the other group by details we want
+* We want to evaluate a proportion percentage for each grouped by month and is easiest to do so against row ... hence the SUM and CASE when statement for a quick separation of the two platoforms
+
+<br>
+
+
+**7.**

@@ -631,4 +631,154 @@ ORDER BY demo_ageband_retail_sales_rankings;
 
 <br>
 
-### `C: Before & After Analysis`
+### `C. Before & After Analysis`
+This technique is usually used when we inspect an important event and want to inspect the impact before and after a certain point in time.
+
+Taking the `week_date` value of 2020-06-15 as the baseline week where the Data Mart sustainable packaging changes came into effect.
+
+We would include all `week_date` values for 2020-06-15 as the start of the period after the change and the previous `week_date` values would be before
+- Starting to sound like a ranking to me!
+
+Using this analysis approach - answer the following questions:
+
+**1.** What is the total sales for the 4 weeks before and after 2020-06-15? What is the growth or reduction rate in actual values and percentage of sales?
+```sql
+SELECT
+  week_date,
+  sales,
+  (week_date - INTERVAL '4 weeks')::DATE AS four_weeks_bakc
+FROM data_mart.clean_weekly_sales
+WHERE week_date BETWEEN '2020-06-01' AND '2020-06-30'
+ORDER BY week_date
+LIMIT 1;
+```
+|week_date|sales|four_weeks_bakc|
+|----|----|----|
+|2020-06-01|2200424|2020-05-04|
+
+* So this is somewhat of an idea of what would be difficult with doing a interval on different days and have the default week_number starting on Monday as our bed rock and use the `week_number` value here instead
+
+```sql
+SELECT
+  DISTINCT week_number, week_date
+  FROM data_mart.clean_weekly_sales
+WHERE week_date < '2020-08-15' AND week_date > '2020-05-01'
+ORDER BY week_date;
+```
+|week_number|week_date|
+|----|---|
+|19|2020-05-04|
+|20|2020-05-11|
+|21|2020-05-18|
+|22|2020-05-25|
+|23|2020-06-01|
+|24|2020-06-08|
+|25|2020-06-15|
+|26|2020-06-22|
+|27|2020-06-29|
+|28|2020-07-06|
+|29|2020-07-13|
+|30|2020-07-20|
+
+* Now seeing about isolating the weeks before and after cutoff week with a `GENERATE_SERIES` calls
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number AS cutoff_week
+FROM data_mart.clean_weekly_sales 
+WHERE week_date = '2020-06-15'
+)
+-- let's look at generated series to get the 4 preceding and subsequent week_number int values
+SELECT
+  cutoff_week,
+  GENERATE_SERIES(cutoff_week::INT - 4, cutoff_week::INT - 1) AS preceding_weeks,
+  GENERATE_SERIES(cutoff_week::INT + 1,  cutoff_week::INT + 4) AS subsequent_weeks
+FROM cutoff_week;
+```
+|cutoff_week|preceding_weeks|subsequent_weeks|
+|------|-----|----|
+|25|21|26|
+|25|22|27|
+|25|23|28|
+|25|24|29|
+
+* We may have to do a little more manipulation but this is a good look at how we can at least set our intervals
+  - A bit of a tricky `SUM_CASE_WHEN` logic using a subquery return from our CTE .. but doable!
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number AS cutoff_week
+FROM data_mart.clean_weekly_sales 
+WHERE week_date = '2020-06-15'
+),
+-- let's look at generated series to get the 4 preceding and subsequent week_number int values
+preceding_subsequent_weeks AS (
+SELECT
+  cutoff_week,
+  GENERATE_SERIES(cutoff_week::INT - 4, cutoff_week::INT - 1) AS preceding_weeks,
+  GENERATE_SERIES(cutoff_week::INT + 1,  cutoff_week::INT + 4) AS subsequent_weeks
+FROM cutoff_week
+),
+-- total_sales
+total_pre_post_sales AS (
+SELECT
+-- Now we need to do a conditional summing based on the week values .. a little tricky but doable
+  SUM(CASE WHEN week_number in (SELECT preceding_weeks FROM preceding_subsequent_weeks) THEN sales END) AS preceding_weeks_sum,
+  SUM(CASE WHEN week_number in (SELECT subsequent_weeks FROM preceding_subsequent_weeks) THEN sales END) AS subsequent_weeks_sum
+FROM data_mart.clean_weekly_sales
+)
+SELECT * FROM total_pre_post_sales;
+```
+|preceding_weeks_sum|subsequent_weeks_sum|
+|------|------|
+|6721008962|6745365801|
+
+<br>
+
+
+### **Here is the Full Query**
+* **Alright!** Now we have our sum values for the range requested, can have a bit of a custom return to show how the values relate
+  * ... IT'S ALOT!
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number AS cutoff_week
+FROM data_mart.clean_weekly_sales 
+WHERE week_date = '2020-06-15'
+),
+-- let's look at generated series to get the 4 preceding and subsequent week_number int values
+preceding_subsequent_weeks AS (
+SELECT
+  cutoff_week,
+  GENERATE_SERIES(cutoff_week::INT - 4, cutoff_week::INT - 1) AS preceding_weeks,
+  GENERATE_SERIES(cutoff_week::INT + 1,  cutoff_week::INT + 4) AS subsequent_weeks
+FROM cutoff_week
+),
+-- total_sales
+total_pre_post_sales AS (
+SELECT
+-- Now we need to do a conditional summing based on the week values .. a little tricky but doable
+  SUM(CASE WHEN week_number in (SELECT preceding_weeks FROM preceding_subsequent_weeks) THEN sales END) AS preceding_weeks_sum,
+  SUM(CASE WHEN week_number in (SELECT subsequent_weeks FROM preceding_subsequent_weeks) THEN sales END) AS subsequent_weeks_sum
+FROM data_mart.clean_weekly_sales
+)
+SELECT 
+  *,
+  CASE
+    WHEN preceding_weeks_sum > subsequent_weeks_sum THEN 'Higher Sales in Preceding Period'
+    WHEN subsequent_weeks_sum > preceding_weeks_sum THEN 'Higher Sales in Subsequent Weeks'
+    ELSE 'Wow! Somehow the sales are the same'
+  END AS greater_sales_period,
+  CASE 
+    WHEN preceding_weeks_sum > subsequent_weeks_sum THEN preceding_weeks_sum - subsequent_weeks_sum
+    WHEN subsequent_weeks_sum > preceding_weeks_sum THEN subsequent_weeks_sum - preceding_weeks_sum
+    ELSE 0
+  END AS greater_sales_period_diff,
+  -- All branches of a CASE expression need to have the same type.
+  CASE
+    WHEN preceding_weeks_sum > subsequent_weeks_sum THEN TO_CHAR(ROUND(100 * (preceding_weeks_sum - subsequent_weeks_sum) / subsequent_weeks_sum::NUMERIC, 3), 'fm0D000%')
+    WHEN subsequent_weeks_sum > preceding_weeks_sum THEN TO_CHAR(ROUND(100 * (subsequent_weeks_sum - preceding_weeks_sum) / preceding_weeks_sum::NUMERIC, 3), 'fm0D000%')
+    ELSE TO_CHAR(0, 'fm0D000%') 
+  END as greater_sales_percentage
+FROM total_pre_post_sales;
+```
+|preceding_weeks_sum|subsequent_weeks_sum|greater_sales_period|greater_sales_period_diff|greater_sales_percentage|
+|-----|-----|-----|-----|-----|
+|6721008962|6745365801|Higher Sales in Subsequent Weeks|24356839|0.362%|

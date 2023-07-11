@@ -216,7 +216,7 @@ FROM age_demographic_retail_sales
 SELECT 
   *,
   ROUND(
-    100 * (age_demo_sales / SUM(age_demo_sales) OVER())
+    100 * (age_demo_sales::NUMERIC / SUM(age_demo_sales) OVER())
   , 1) AS age_demo_percentage_ofsale
 FROM age_band_sales_rankings 
 ORDER BY demo_ageband_retail_sales_rankings;

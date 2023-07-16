@@ -289,3 +289,31 @@ SELECT
   ) AS subsequent_weeks
 )
 SELECT * FROM preceding_subsequent_weeks;
+
+-- Get the Sales value for the region in the preceding and subsequent weeks
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT + 1, (SELECT * FROM cutoff_week)::INT + 12)
+  ) AS subsequent_weeks
+)
+-- Now let's look at getting the summed values for our to array series 
+SELECT
+  region,
+  SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(preceding_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS region_sales_preceding_weeks,
+    SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(subsequent_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS region_sales_subsequent_weeks
+FROM data_mart.clean_weekly_sales
+GROUP BY region
+ORDER BY region;

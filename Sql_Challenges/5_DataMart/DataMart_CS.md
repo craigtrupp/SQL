@@ -821,3 +821,44 @@ SELECT * FROM preceding_subsequent_weeks;
 |preceding_weeks|subsequent_weeks|
 |-----|-------|
 |[ 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 ]|[ 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37 ]|
+
+* So no we can group by a region and get the sales for preceding and subsequent weeks with a sum/case when statement
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT + 1, (SELECT * FROM cutoff_week)::INT + 12)
+  ) AS subsequent_weeks
+)
+-- Now let's look at getting the summed values for our to array series 
+SELECT
+  region,
+  SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(preceding_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS region_sales_preceding_weeks,
+    SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(subsequent_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS region_sales_subsequent_weeks
+FROM data_mart.clean_weekly_sales
+GROUP BY region
+ORDER BY region;
+```
+|region|region_sales_preceding_weeks|region_sales_subsequent_weeks|
+|----|-----|-----|
+|AFRICA|4942976910|4595185753|
+|ASIA|4613242689|4182101754|
+|CANADA|1244662705|1131487625|
+|EUROPE|328141414|316465911|
+|OCEANIA|6698586333|6099835320|
+|SOUTH AMERICA|611056923|558974002|
+|USA|1967554887|1799879102|
+
+* Now we can look at the difference in the period for the region and such

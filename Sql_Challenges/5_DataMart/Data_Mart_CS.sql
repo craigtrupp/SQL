@@ -317,3 +317,56 @@ SELECT
 FROM data_mart.clean_weekly_sales
 GROUP BY region
 ORDER BY region;
+
+
+-- Platform (Just different dimensions so this will be the last query for the case study!)\
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+  -- Will start at week 25 to get a 12 week subsequent range for before/preceding
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT, (SELECT * FROM cutoff_week)::INT + 11)
+  ) AS subsequent_weeks
+),
+-- Now let's look at getting the summed values for our to array series 
+preceding_subsequent_week_sum AS (
+SELECT
+  platform,
+  -- Need ot use UNNEST to unpack array weeks for each week_number inclusion (won't return an inclusion similar to python for value in an array/list)
+  SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(preceding_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS sales_preceding_weeks,
+    SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(subsequent_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS sales_subsequent_weeks
+FROM data_mart.clean_weekly_sales
+GROUP BY platform
+ORDER BY platform
+)
+SELECT
+  *,
+  sales_preceding_weeks + sales_subsequent_weeks AS total_sales,
+    CASE
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN 'Higher Sales in Preceding Period'
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN 'Higher Sales in Subsequent Weeks'
+    ELSE 'Wow! Somehow the sales are the same'
+  END AS greater_sales_period,
+  CASE 
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN sales_preceding_weeks - sales_subsequent_weeks
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN sales_subsequent_weeks - sales_preceding_weeks
+    ELSE 0
+  END AS greater_sales_period_diff,
+  -- All branches of a CASE expression need to have the same type.
+  CASE
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN TO_CHAR(ROUND(100 * (sales_preceding_weeks - sales_subsequent_weeks) / sales_subsequent_weeks::NUMERIC, 3), 'fm0D000%')
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN TO_CHAR(ROUND(100 * (sales_subsequent_weeks - sales_preceding_weeks) / sales_preceding_weeks::NUMERIC, 3), 'fm0D000%')
+    ELSE TO_CHAR(0, 'fm0D000%') 
+  END as greater_sales_percentage
+FROM preceding_subsequent_week_sum;

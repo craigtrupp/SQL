@@ -803,6 +803,7 @@ Which areas of the business have the highest negative impact in sales metrics pe
 <br>
 
 * Trying a membershp type of week inclusion for generated series (a little different than above on the join)
+  - Slight adjustment here as the unique distinct weeks (13-36) uses the cutoff week into the subsequent week to have 12 equal values in each
 ```sql
 WITH cutoff_week AS (
 SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
@@ -821,6 +822,32 @@ SELECT * FROM preceding_subsequent_weeks;
 |preceding_weeks|subsequent_weeks|
 |-----|-------|
 |[ 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 ]|[ 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37 ]|
+
+##### `Slight Alteration for Even Length of Weeks (For All Distinct Weeks)`
+
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+  -- Will start at week 25 to get a 12 week subsequent range for before/preceding
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT, (SELECT * FROM cutoff_week)::INT + 11)
+  ) AS subsequent_weeks
+)
+SELECT 
+  *,
+  array_length(preceding_weeks, 1) AS length_preceding_weeks,
+  array_length(subsequent_weeks, 1) AS length_subsequent_weeks
+FROM preceding_subsequent_weeks
+```
+|preceding_weeks|subsequent_weeks|length_preceding_weeks|length_subsequent_weeks|
+|-----|-----|-----|-----|
+|[ 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 ]|[ 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36 ]|12|12|
 
 * So no we can group by a region and get the sales for preceding and subsequent weeks with a sum/case when statement
 ```sql
@@ -861,4 +888,157 @@ ORDER BY region;
 |SOUTH AMERICA|611056923|558974002|
 |USA|1967554887|1799879102|
 
-* Now we can look at the difference in the period for the region and such
+* Now we can look at the difference in the period for the region and create a custom readout for the different **dimensions** (region, platform, etc) we want to assess sales against
+
+#### **Region**
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+  -- Will start at week 25 to get a 12 week subsequent range for before/preceding
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT, (SELECT * FROM cutoff_week)::INT + 11)
+  ) AS subsequent_weeks
+),
+-- Now let's look at getting the summed values for our to array series 
+preceding_subsequent_week_sum_per_region AS (
+SELECT
+  region,
+  -- Need ot use UNNEST to unpack array weeks for each week_number inclusion (won't return an inclusion similar to python for value in an array/list)
+  SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(preceding_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS sales_preceding_weeks,
+    SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(subsequent_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS sales_subsequent_weeks
+FROM data_mart.clean_weekly_sales
+GROUP BY region
+ORDER BY region
+)
+SELECT
+  *,
+  sales_preceding_weeks + sales_subsequent_weeks AS total_sales,
+    CASE
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN 'Higher Sales in Preceding Period'
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN 'Higher Sales in Subsequent Weeks'
+    ELSE 'Wow! Somehow the sales are the same'
+  END AS greater_sales_period,
+  CASE 
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN sales_preceding_weeks - sales_subsequent_weeks
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN sales_subsequent_weeks - sales_preceding_weeks
+    ELSE 0
+  END AS greater_sales_period_diff,
+  -- All branches of a CASE expression need to have the same type.
+  CASE
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN TO_CHAR(ROUND(100 * (sales_preceding_weeks - sales_subsequent_weeks) / sales_subsequent_weeks::NUMERIC, 3), 'fm0D000%')
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN TO_CHAR(ROUND(100 * (sales_subsequent_weeks - sales_preceding_weeks) / sales_preceding_weeks::NUMERIC, 3), 'fm0D000%')
+    ELSE TO_CHAR(0, 'fm0D000%') 
+  END as greater_sales_percentage
+FROM preceding_subsequent_week_sum_per_region;
+```
+|region|sales_preceding_weeks|sales_subsequent_weeks|total_sales|greater_sales_period|greater_sales_period_diff|greater_sales_percentage|
+|----|----|----|-----|---|----|-----|
+|AFRICA|4942976910|4997516159|9940493069|Higher Sales in Subsequent Weeks|54539249|1.103%|
+|ASIA|4613242689|4551927271|9165169960|Higher Sales in Preceding Period|61315418|1.347%|
+|CANADA|1244662705|1234025206|2478687911|Higher Sales in Preceding Period|10637499|0.862%|
+|EUROPE|328141414|344420043|672561457|Higher Sales in Subsequent Weeks|16278629|4.961%|
+|OCEANIA|6698586333|6640244793|13338831126|Higher Sales in Preceding Period|58341540|0.879%|
+|SOUTH AMERICA|611056923|608981392|1220038315|Higher Sales in Preceding Period|2075531|0.341%|
+|USA|1967554887|1960297502|3927852389|Higher Sales in Preceding Period|7257385|0.370%|
+
+<br>
+
+#### **Platform**
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+  -- Will start at week 25 to get a 12 week subsequent range for before/preceding
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT, (SELECT * FROM cutoff_week)::INT + 11)
+  ) AS subsequent_weeks
+),
+-- Now let's look at getting the summed values for our to array series 
+preceding_subsequent_week_sum AS (
+SELECT
+  platform,
+  -- Need ot use UNNEST to unpack array weeks for each week_number inclusion (won't return an inclusion similar to python for value in an array/list)
+  SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(preceding_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS sales_preceding_weeks,
+    SUM(
+    CASE
+      WHEN week_number in (SELECT UNNEST(subsequent_weeks) FROM preceding_subsequent_weeks) THEN sales END
+  ) AS sales_subsequent_weeks
+FROM data_mart.clean_weekly_sales
+GROUP BY platform
+ORDER BY platform
+)
+SELECT
+  *,
+  sales_preceding_weeks + sales_subsequent_weeks AS total_sales,
+    CASE
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN 'Higher Sales in Preceding Period'
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN 'Higher Sales in Subsequent Weeks'
+    ELSE 'Wow! Somehow the sales are the same'
+  END AS greater_sales_period,
+  CASE 
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN sales_preceding_weeks - sales_subsequent_weeks
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN sales_subsequent_weeks - sales_preceding_weeks
+    ELSE 0
+  END AS greater_sales_period_diff,
+  -- All branches of a CASE expression need to have the same type.
+  CASE
+    WHEN sales_preceding_weeks > sales_subsequent_weeks THEN TO_CHAR(ROUND(100 * (sales_preceding_weeks - sales_subsequent_weeks) / sales_subsequent_weeks::NUMERIC, 3), 'fm0D000%')
+    WHEN sales_subsequent_weeks > sales_preceding_weeks THEN TO_CHAR(ROUND(100 * (sales_subsequent_weeks - sales_preceding_weeks) / sales_preceding_weeks::NUMERIC, 3), 'fm0D000%')
+    ELSE TO_CHAR(0, 'fm0D000%') 
+  END as greater_sales_percentage
+FROM preceding_subsequent_week_sum;
+```
+|platform|sales_preceding_weeks|sales_subsequent_weeks|total_sales|greater_sales_period|greater_sales_period_diff|greater_sales_percentage|
+|----|----|----|-----|---|----|-----|
+|Retail|19886040272|19768576165|39654616437|Higher Sales in Preceding Period|117464107|0.594%|
+|Shopify|520181589|568836201|1089017790|Higher Sales in Subsequent Weeks|48654612|9.353%|
+
+<br>
+
+#### **Age Band**
+* All that changes in the sql query is the cte using the groupby, just posting results now
+
+|age_band|sales_preceding_weeks|sales_subsequent_weeks|total_sales|greater_sales_period|greater_sales_period_diff|greater_sales_percentage|
+|----|----|----|-----|---|----|-----|
+|Middle Aged|3276892347|3269748622|6546640969|Higher Sales in Preceding Period|7143725|0.218%|
+|Retirees|6646865322|6634706880|13281572202|Higher Sales in Preceding Period|12158442|0.183%|
+|Unknown|8191628826|8146983408|16338612234|Higher Sales in Preceding Period|44645418|0.548%|
+|Young Adults|2290835366|2285973456|4576808822|Higher Sales in Preceding Period|4861910|0.213%|
+
+<br>
+
+#### **Demographic**
+|demographic|sales_preceding_weeks|sales_subsequent_weeks|total_sales|greater_sales_period|greater_sales_period_diff|greater_sales_percentage|
+|----|----|----|-----|---|----|-----|
+|Couples|5608866131|5592341420|11201207551|Higher Sales in Preceding Period|16524711|0.295%|
+|Families|6605726904|6598087538|13203814442|Higher Sales in Preceding Period|7639366|0.116%|
+|Unknown|8191628826|8146983408|16338612234|Higher Sales in Preceding Period|44645418|0.548%|
+
+<br>
+
+#### **Customer_Type**
+|customer_type|sales_preceding_weeks|sales_subsequent_weeks|total_sales|greater_sales_period|greater_sales_period_diff|greater_sales_percentage|
+|----|----|----|-----|---|----|-----|
+|Existing|10168877642|10117367239|20286244881|Higher Sales in Preceding Period|51510403|0.509%|
+|Guest|7630353739|7595150744|15225504483|Higher Sales in Preceding Period|35202995|0.463%|
+|New|2606990480|2624894383|5231884863|Higher Sales in Subsequent Weeks|17903903|0.687%|

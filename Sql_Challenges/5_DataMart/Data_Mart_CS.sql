@@ -269,3 +269,23 @@ SELECT
     ELSE TO_CHAR(0, 'fm0D000%') 
   END as greater_sales_percentage
 FROM total_pre_post_sales;
+
+
+
+
+-- D : Creating series for 12 week interval (and then subsequent group by stats for different dimensions)
+
+-- Create Preceding/Subsequent Weeks
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT + 1, (SELECT * FROM cutoff_week)::INT + 12)
+  ) AS subsequent_weeks
+)
+SELECT * FROM preceding_subsequent_weeks;

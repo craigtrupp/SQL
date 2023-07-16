@@ -782,3 +782,42 @@ FROM total_pre_post_sales;
 |preceding_weeks_sum|subsequent_weeks_sum|greater_sales_period|greater_sales_period_diff|greater_sales_percentage|
 |-----|-----|-----|-----|-----|
 |6721008962|6745365801|Higher Sales in Subsequent Weeks|24356839|0.362%|
+
+* https://database.guide/3-ways-to-format-a-number-as-a-percentage-in-postgresql/
+  - Good helper here for formatting percentage reminder
+
+
+---
+
+<br>
+
+### `Part D. Bonus Question`
+Which areas of the business have the highest negative impact in sales metrics performance in 2020 for the 12 week before and after period? Taking the `week_date` value of 2020-06-15 as the baseline week where the Data Mart sustainable packaging changes came into effect.
+
+* region
+* platform
+* age_band
+* demographic
+* customer_type
+
+<br>
+
+* Trying a membershp type of week inclusion for generated series (a little different than above on the join)
+```sql
+WITH cutoff_week AS (
+SELECT DISTINCT week_number FROM data_mart.clean_weekly_sales WHERE week_date = '2020-06-15'
+),
+preceding_subsequent_weeks AS (
+SELECT
+  ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT - 12, (SELECT * FROM cutoff_week)::INT - 1)
+  ) AS preceding_weeks,
+    ARRAY(
+    SELECT GENERATE_SERIES((SELECT * FROM cutoff_week)::INT + 1, (SELECT * FROM cutoff_week)::INT + 12)
+  ) AS subsequent_weeks
+)
+SELECT * FROM preceding_subsequent_weeks;
+```
+|preceding_weeks|subsequent_weeks|
+|-----|-------|
+|[ 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 ]|[ 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37 ]|

@@ -157,5 +157,105 @@ FROM user_cookie_counts;
 
 <br>
 
+**3.** What is the unique number of visits by all users per month?
+```sql
+-- Quick look at total row count to validate our return on subsequent query
+SELECT COUNT(*) from clique_bait.users;
+```
+|count|
+|--|
+|1782|
+
+```sql
+-- What is the unique number of visits by all users per month?
+SELECT
+  DATE_PART('MONTH', start_date) AS Month,
+  TO_CHAR(start_date, 'Month') AS Month_Name,
+  COUNT(*) AS User_Counts_Per_Month,
+  SUM(COUNT(*)) OVER() AS total_row_check
+FROM clique_bait.users
+GROUP BY Month, Month_Name
+ORDER BY User_Counts_Per_Month DESC;
+```
+|month|month_name|user_counts_per_month|total_row_check|
+|-----|-----|-----|-----|
+|2|February|744|1782|
+|3|March|458|1782|
+|1|January|438|1782|
+|4|April|124|1782|
+|5|May|18|1782|
+
+<br>
+
+**4.** What is the number of events for each event type? 
+* Looking outside of Users now for some Event Detail
+```sql
+SELECT
+  ev.event_type,
+  evid.event_name,
+  COUNT(*) AS event_type_count
+FROM clique_bait.events AS ev
+INNER JOIN clique_bait.event_identifier AS evid
+  USING(event_type)
+GROUP BY ev.event_type, evid.event_name
+ORDER BY event_type_count DESC;
+```
+|event_type|event_name|event_type_count
+|----|----|----|
+|1|Page View|20928|
+|2|Add to Cart|8451|
+|3|Purchase|1777|
+|4|Ad Impression|876|
+|5|Ad Click|702|
+
+<br>
+
+**5.** What is the percentage of visits which have a purchase event?
+```sql
+SELECT
+  ev.event_type,
+  evid.event_name,
+  ROUND(
+  COUNT(*)::NUMERIC / (SELECT COUNT(*) FROM clique_bait.events)
+  , 2) AS purchase_percentage_decimal,
+  CONCAT(
+  100 * ROUND(
+  COUNT(*)::NUMERIC / (SELECT COUNT(*) FROM clique_bait.events)
+  , 2), '%') AS purchase_percentage
+FROM clique_bait.events AS ev
+INNER JOIN clique_bait.event_identifier AS evid
+  USING(event_type)
+WHERE evid.event_name = 'Purchase'
+GROUP BY ev.event_type, evid.event_name;
+```
+|event_type|event_name|purchase_percentage_decimal|purchase_percentage|
+|-----|-----|------|-----|
+|3|Purchase|0.05|5.00%|
+
+<br>
+
+**6.** What is the percentage of visits which view the checkout page but do not have a purchase event?
+```sql
+SELECT
+  ev.event_type,
+  evid.event_name,
+  COUNT(*) AS event_type_count,
+  ROUND(
+    COUNT(*)::NUMERIC / SUM(COUNT(*)) OVER() 
+  , 2) AS event_percetange_decimal,
+  CONCAT(
+  100 * ROUND(
+  COUNT(*)::NUMERIC / SUM(COUNT(*)) OVER() 
+  , 2), '%') AS event_percetange
+FROM clique_bait.events AS ev
+INNER JOIN clique_bait.event_identifier AS evid
+  USING(event_type)
+WHERE evid.event_name IN ('Purchase', 'Add to Cart')
+GROUP BY ev.event_type, evid.event_name;
+```
+|event_type|event_name|event_type_count|event_percetange_decimal|event_percetange|
+|-----|-----|-----|----|----|
+|3|Purchase|1777|0.17|17.00%|
+|2|Add to Cart|8451|0.83|83.00%|
 
 

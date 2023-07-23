@@ -167,7 +167,7 @@ SELECT COUNT(*) from clique_bait.users;
 |1782|
 
 ```sql
--- What is the unique number of visits by all users per month?
+-- This is just the counts of user events (we want event details)
 SELECT
   DATE_PART('MONTH', start_date) AS Month,
   TO_CHAR(start_date, 'Month') AS Month_Name,
@@ -184,6 +184,51 @@ ORDER BY User_Counts_Per_Month DESC;
 |1|January|438|1782|
 |4|April|124|1782|
 |5|May|18|1782|
+
+<br>
+
+* Unique Number of visits by all users per month will look at data from the `Event` table
+```sql
+-- UNION ALL (Same Counts)
+SELECT COUNT(DISTINCT cookie_id) FROM clique_bait.events
+UNION ALL
+SELECT COUNT(DISTINCT cookie_id) FROM clique_bait.users;
+```
+|count|
+|----|
+|1782|
+|1782|
+
+* We can see here that the events and users appear to share the same distinct cookie_id but the counts of rows in events is a lot higher as it appears to be a `many-many` type relationship
+```sql
+SELECT visit_id, cookie_id, sequence_number
+FROM clique_bait.events
+ORDER BY visit_id
+LIMIT 5
+```
+|visit_id|cookie_id|sequence_number|
+|---|----|----|
+|242220|001652|1|
+|c4120b|001652|1|
+|c4120b|001652|2|
+|c4120b|001652|3|
+|c4120b|001652|4|
+
+```sql
+SELECT 
+  DATE_PART('Month', event_time) AS Month,
+  TO_CHAR(event_time, 'Month') AS Month_Name,
+  COUNT(DISTINCT visit_id) AS monthly_unique_user_visits
+FROM clique_bait.events
+GROUP BY Month, Month_Name;
+```
+|month|month_name|monthly_unique_user_visits|
+|-----|----|----|
+|1|January|876|
+|2|February|1488|
+|3|March|916|
+|4|April|248|
+|5|May|36|
 
 <br>
 
@@ -231,6 +276,78 @@ GROUP BY ev.event_type, evid.event_name;
 |event_type|event_name|purchase_percentage_decimal|purchase_percentage|
 |-----|-----|------|-----|
 |3|Purchase|0.05|5.00%|
+
+<br>
+
+- So the above is unfortunately ... not right but a good idea of what I was first thinking when assessing the tables without an ERD diagram and know relationship between `events` and `users`. Now to more of the purchase events items
+```sql
+-- Now the way this looks is we would be looking at the distinct count of unique `visit_ids` against how many actually turned into a event_type of purchase
+SELECT
+  e.event_type,
+  ei.event_name,
+  SUM(CASE WHEN ei.event_name = 'Purchase' THEN 1 ELSE 0 END) AS purchase_count,
+  (SELECT COUNT(DISTINCT visit_id) FROM clique_bait.events) AS unique_user_visit,
+  ROUND(
+  SUM(CASE WHEN ei.event_name = 'Purchase' THEN 1 ELSE 0 END)::NUMERIC / (SELECT COUNT(DISTINCT visit_id) AS unique_visit FROM clique_bait.events)
+  , 4) AS decimal_percentage,
+  CONCAT(
+    ROUND(
+    100 * SUM(CASE WHEN ei.event_name = 'Purchase' THEN 1 ELSE 0 END)::NUMERIC / (SELECT COUNT(DISTINCT visit_id) AS unique_visit FROM clique_bait.events)
+    , 2), '%') AS purchase_perc_per_unique_visits 
+FROM clique_bait.events AS e 
+INNER JOIN clique_bait.event_identifier AS ei 
+  USING(event_type)
+WHERE ei.event_name = 'Purchase'
+GROUP BY e.event_type, ei.event_name;
+```
+|event_type|event_name|purchase_count|unique_user_visit|decimal_percentage|purchase_perc_per_unique_visits|
+|----|----|-----|-----|------|---|
+|3|Purchase|1777|3564|0.4986|49.86%|
+
+<br>
+
+* Here's another way 
+```sql
+WITH cte_visits_with_purchase_flag AS (
+  SELECT
+    visit_id,
+    MAX(CASE WHEN event_type = 3 THEN 3 ELSE 0 END) AS purchase_flag
+  FROM clique_bait.events
+  GROUP BY visit_id
+)
+SELECT
+  ROUND(100 * SUM(purchase_flag) / COUNT(*), 2) AS purchase_percentage
+FROM cte_visits_with_purchase_flag;
+```
+|visit_id|purchase_flag|
+|----|----|
+|fbfdcb|0|
+|d27c65|0|
+|79553d|0|
+|aded2b|0|
+|dc8de5|0|
+|c91b3c|1|
+|2be4dc|0|
+
+* So now we have each visited grouped by (visit_id can have many events (`one-visit to many-events`)) so we would want to SUM the purchase flag and divide by our total unique visits
+```sql
+WITH cte_visits_with_purchase_flag AS (
+  SELECT
+    visit_id,
+    SUM(CASE WHEN event_type = 3 THEN 1 ELSE 0 END) AS purchase_flag
+  FROM clique_bait.events
+  GROUP BY visit_id
+)
+SELECT
+  100 * SUM(purchase_flag) / (SELECT COUNT(DISTINCT visit_id) FROM clique_bait.events)::NUMERIC AS purchase_percentage,
+  SUM(purchase_flag) AS total_purchases, 
+  (SELECT COUNT(DISTINCT visit_id) FROM clique_bait.events) AS unique_events,
+  CONCAT(ROUND(100 * SUM(purchase_flag) / (SELECT COUNT(DISTINCT visit_id) FROM clique_bait.events)::NUMERIC, 2), '%') AS purchase_perc_str
+FROM cte_visits_with_purchase_flag;
+```
+|purchase_percentage|total_purchases|unique_events|purchase_perc_str|
+|-----|----|-----|-----|
+|49.8597081930415264|1777|3564|49.86%|
 
 <br>
 

@@ -525,5 +525,82 @@ FROM page_counts;
 
 <br>
 
+**7.** What are the top 3 pages by number of views?
+```sql
+SELECT
+  ph.page_id,
+  ph.page_name,
+  ei.event_name,
+  COUNT(*) AS total_page_visits
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  USING(page_id)
+INNER JOIN clique_bait.event_identifier AS ei 
+  ON ei.event_type = e.event_type
+GROUP BY ph.page_id, ph.page_name, ei.event_name
+ORDER BY total_page_visits DESC
+LIMIT 5
+```
+|page_id|page_name|event_name|total_page_visits|
+|----|----|----|---|
+|2|All Products|Page View|3174|
+|12|Checkout|Page View|2103|
+|1|Home Page|Page View|1782|
+|13|Confirmation|Purchase|1777|
+|11|Oyster|Page View|1568|
+
+* We can see organically that even before using a `WHERE` clause for the count of the different events by **page** definition we can already see the top 3 Page View which has 4 of the 5 top event counts per page to start with
+
+
+<br>
+
+**8.** What is the number of views and cart adds for each product category?
+```sql
+SELECT 
+  ph.product_category,
+  ph.product_id,
+  e.event_type,
+  ei.event_name
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON ph.page_id = e.page_id
+INNER JOIN clique_bait.event_identifier AS ei 
+  ON e.event_type = ei.event_type
+WHERE product_category IS NOT NULL AND product_id IS NOT NULL
+LIMIT 5;
+```
+|product_category|product_id|event_type|event_name|
+|----|----|----|-----|
+|Luxury|4|1|Page View|
+|Shellfish|7|1|Page View|
+|Shellfish|7|2|Add to Cart|
+|Shellfish|8|1|Page View|
+|Shellfish|8|2|Add to Cart|
+
+* Ok so we can simply now do a similar sum/case with a group by to get each product details for the counts for `views` and `carts` onto one line
+
+```sql
+SELECT 
+  ph.product_category,
+  SUM(CASE WHEN ei.event_name = 'Page View' THEN 1 ELSE 0 END) AS product_page_views,
+  SUM(CASE WHEN ei.event_name = 'Add to Cart' THEN 1 ELSE 0 END) AS product_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON ph.page_id = e.page_id
+INNER JOIN clique_bait.event_identifier AS ei 
+  ON e.event_type = ei.event_type
+WHERE ph.product_category IS NOT NULL
+GROUP BY ph.product_category
+ORDER BY ph.product_category;
+```
+|product_category|product_page_views|product_cart_adds|
+|------|----|-----|
+|Fish|4633|2789|
+|Luxury|3032|1870|
+|Shellfish|6204|3792|
+
+<br>
+
+
 
 

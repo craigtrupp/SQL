@@ -375,4 +375,155 @@ GROUP BY ev.event_type, evid.event_name;
 |3|Purchase|1777|0.17|17.00%|
 |2|Add to Cart|8451|0.83|83.00%|
 
+- So ... similar to above we approaceh the above just a bit wrong in terms of how the relationships we're creating rows for our percentage counts
+
+<br>
+
+* Initially we can look at the distinct `user event` counts by event (a user event can have many events!)
+```sql
+WITH unique_user_event_counts AS (
+SELECT
+  e.event_type,
+  ei.event_name,
+  COUNT(DISTINCT visit_id) AS unique_visits_by_event
+FROM clique_bait.events AS e 
+INNER JOIN clique_bait.event_identifier AS ei 
+  ON e.event_type = ei.event_type
+GROUP BY e.event_type, ei.event_name
+ORDER BY unique_visits_by_event
+)
+
+```
+|event_type|event_name|unique_visits_by_event|
+|----|-----|-----|
+|5|Ad Click|702|
+|4|Ad Impression|876|
+|3|Purchase|1777|
+|2|Add to Cart|2510|
+|1|Page View|3564|
+
+* So I would define percentage of views ot a checkout page as the `Add  to Cart` option with the `Purchase` as the self-defined .. purchase
+```sql
+WITH unique_user_event_counts AS (
+SELECT
+  e.event_type,
+  ei.event_name,
+  COUNT(DISTINCT visit_id) AS unique_visits_by_event
+FROM clique_bait.events AS e 
+INNER JOIN clique_bait.event_identifier AS ei 
+  ON e.event_type = ei.event_type
+GROUP BY e.event_type, ei.event_name
+ORDER BY unique_visits_by_event
+)
+SELECT
+ROUND(
+    (SELECT unique_visits_by_event FROM unique_user_event_counts WHERE event_name = 'Purchase') / 
+    (SELECT unique_visits_by_event FROM unique_user_event_counts WHERE event_name = 'Add to Cart')::NUMERIC
+  , 3) AS purchase_decimal_percentage,
+CONCAT(
+  ROUND(
+      (SELECT unique_visits_by_event FROM unique_user_event_counts WHERE event_name = 'Purchase') / 
+      (SELECT unique_visits_by_event FROM unique_user_event_counts WHERE event_name = 'Add to Cart')::NUMERIC
+    , 3) * 100, '%') AS purchase_percentage
+```
+|purchase_decimal_percentage|purchase_percentage|
+|----|----|
+|0.708|70.800%|
+
+* ... Aaaah so we want to look at this a bit different again but maintaining some approaches to this as a way to remember how data can be ... interepreted in a fair few different ways when working with a data schema initially for the first time.
+    - The `checkout` page has a different page id so an event of `add to cart` does not != a view to the checkout page and rather is defined by the `page_id` within events
+
+```sql
+-- We wnat to use the page_hierarchy here for help
+SELECT 
+  DISTINCT page_id, page_name
+FROM clique_bait.page_hierarchy
+ORDER BY page_id;
+```
+|page_id|page_name|
+|-----|----|
+|1|Home Page|
+|2|All Products|
+|3|Salmon|
+|4|Kingfish|
+|5|Tuna|
+|6|Russian Caviar|
+|7|Black Truffle|
+|8|Abalone|
+|9|Lobster|
+|10|Crab|
+|11|Oyster|
+|12|Checkout|
+|13|Confirmation|
+
+* So we can now drill down into counts by keying in on the shared `page_id`
+```sql
+SELECT
+  ph.page_id,
+  ph.page_name,
+  COUNT(DISTINCT visit_id) AS unique_visits_page_counts
+FROM clique_bait.events AS e 
+INNER JOIN clique_bait.page_hierarchy AS ph 
+ON e.page_id = ph.page_id
+WHERE e.page_id IN (12, 13)
+GROUP BY ph.page_id, ph.page_name
+ORDER BY unique_visits_page_counts;
+```
+|page_id|page_name|unique_visits_page_counts|
+|----|-----|-----|
+|13|Confirmation|1777|
+|12|Checkout|2103|
+
+* And now just a bit deeper here to take the total "confirmations" and see the percentage against those who reached the checkout page
+
+```sql
+-- This groups unique user visits (GROUP BY) to see if they had a confirmation or Checkout event and provide a 1 for each conditional SUM/Case column
+WITH page_counts AS (
+SELECT
+  e.visit_id,
+  SUM(CASE WHEN ph.page_name = 'Confirmation' THEN 1 ELSE 0 END) AS Confirmation_unique_events,
+  SUM(CASE WHEN ph.page_name = 'Checkout' THEN 1 ELSE 0 END) AS Checkout_unique_events
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON  e.page_id = ph.page_id
+GROUP BY e.visit_id
+)
+SELECT * FROM page_counts WHERE Confiration_unique_events = 1 OR Checkout_unique_events = 1 LIMIT 5;
+```
+|visit_id|confirmation_unique_events|checkout_unique_events|
+|----|-----|-----|
+|c91b3c|1|1|
+|5c3394|1|1|
+|b98573|0|1|
+|8be702|1|1|
+|b41d80|1|1|
+
+* This is closer to what we want and now just need to sum each and see the percentage of checkout vs confirmation 
+```sql
+WITH page_counts AS (
+SELECT
+  e.visit_id,
+  SUM(CASE WHEN ph.page_name = 'Confirmation' THEN 1 ELSE 0 END) AS Purchase_unique_events,
+  SUM(CASE WHEN ph.page_name = 'Checkout' THEN 1 ELSE 0 END) AS Checkout_unique_events
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON  e.page_id = ph.page_id
+GROUP BY e.visit_id
+)
+SELECT
+  SUM(Purchase_unique_events) AS total_unique_purchases,
+  SUM(Checkout_unique_events) AS total_unique_checkoutpg_events,
+  CONCAT(ROUND(SUM(Purchase_unique_events)::NUMERIC / SUM(Checkout_unique_events), 3) * 100, '%') AS check_out_to_purchase, 
+  CONCAT(ROUND( 1 - SUM(Purchase_unique_events)::NUMERIC / SUM(Checkout_unique_events), 3) * 100, '%') AS check_out_and_no_purchase
+FROM page_counts;
+```
+|total_unique_purchases|total_unique_checkoutpg_events|check_out_to_purchase|check_out_and_no_purchase|
+|----|-----|-----|-----|
+|1777|2103|84.500%|15.500%|
+
+* And there it is! Awesome conversion from the checkout page to a subsequent purchase action for our grouped by visits
+
+<br>
+
+
 

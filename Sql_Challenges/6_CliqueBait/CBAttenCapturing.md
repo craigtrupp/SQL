@@ -601,6 +601,50 @@ ORDER BY ph.product_category;
 
 <br>
 
+**9.** What are the top 3 products by purchases?
+* So in order to use the data schema as constructed, we would need to isolate all the products that have first been added to the cart, then narrow down the order or event_id to have been being purchased. Secondary `in` check will use a subquery to validate event and products captured in an `add to cart` type action subsequently ending in an order.
+```sql
+-- First let's join the events, event_identifier, and page_hierarchy items which will be aggregating at the end
+-- Also, we want to get all products added to the cart initially
+SELECT
+  ph.product_id, 
+  ph.page_name AS product,
+  ph.product_category AS category,
+  COUNT(*) AS product_purchases
+FROM clique_bait.events AS e 
+INNER JOIN clique_bait.event_identifier AS ei 
+  ON e.event_type = ei.event_type
+INNER JOIN clique_bait.page_hierarchy AS ph 
+  ON e.page_id = ph.page_id
+WHERE ei.event_name = 'Add to Cart'
+-- Now we want to validate if the visit ultimately resulted in a purchase with what was added to the cart
+AND e.visit_id IN (
+SELECT 
+  e.visit_id
+FROM clique_bait.events AS e 
+WHERE e.event_type = 3 -- Purchase event_type 
+)
+-- now we should have a base table to group by and order by
+GROUP BY ph.product_id, product, product_category
+ORDER BY product_purchases DESC;
+```
+|product_id|product|category|product_purchases|
+|-----|-----|----|-----|
+|7|Lobster|Shellfish|754|
+|9|Oyster|Shellfish|726|
+|8|Crab|Shellfish|719|
+|1|Salmon|Fish|711|
+|5|Black Truffle|Luxury|707|
+|2|Kingfish|Fish|707|
+|6|Abalone|Shellfish|699|
+|4|Russian Caviar|Luxury|697|
+|3|Tuna|Fish|697|
 
+<br>
+
+#### `Quick Visit of Above`
+* In order to get all the products that could have been purchased in any event type that ultimately had a purchase, we first must aggregate all the products that have been added to a cart (you can see the two joins to get that detail prior to the subquery inclusion check)
+* Next, we can still use a column/value from our join (customer visit) not within our aggregated look to narrow down the visits that ultimately converted after having been added to the cart.
+* Lastly after the second subquery check for the event resulting in a purchase, we can group by the products, category and unique identifier for the product to get the total counts for an event ultimately ending in a purchase
 
 

@@ -647,4 +647,134 @@ ORDER BY product_purchases DESC;
 * Next, we can still use a column/value from our join (customer visit) not within our aggregated look to narrow down the visits that ultimately converted after having been added to the cart.
 * Lastly after the second subquery check for the event resulting in a purchase, we can group by the products, category and unique identifier for the product to get the total counts for an event ultimately ending in a purchase
 
+---
 
+<br>
+
+### `Product Funnel Analysis`
+**1.** Using a single SQL query - create a new output table which has the following details:
+* How many times was each product viewed?
+* How many times was each product added to cart?
+* How many times was each product added to a cart but not purchased (abandoned)?
+* How many times was each product purchased?
+
+<br>
+
+#### **Process Break Down for Table Generation**
+* So .. in terms of approaches, I think we want to like create a series of CTE's that can uniquely look to populate the different conditions for the event_types and use a conditional CASE SUM for the group by counts we ultimately want for each product
+
+#### `First Look at Views and Additions to the Cart`
+```sql
+WITH product_views_cart_additions AS (
+SELECT
+  ph.page_name AS product, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS product_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS product_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id
+WHERE ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+)
+SELECT * FROM product_views_cart_additions;
+```
+|product|product_views|product_cart_adds|
+|----|-----|-----|
+|Abalone|1525|932|
+|Black Truffle|1469|924|
+|Crab|1564|949|
+|Kingfish|1559|920|
+|Lobster|1547|968|
+|Oyster|1568|943|
+|Russian Caviar|1563|946|
+|Salmon|1559|938|
+|Tuna|1515|931|
+
+#### `Now to Cart Additions But Not Purchased`
+* Now there doesn't appear to be any `event_type` in which a cart removal is tracked in events. So similar to above, I think we can look to filter by the events `visit_id` which doesn't have a purchase event and group by the product for a simple count of the table we build for visits that don't have a purchase event.
+```sql
+WITH cart_additions_no_purchase AS (
+SELECT
+  ph.page_name AS product, 
+  COUNT(*) AS abandoned_count
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id 
+WHERE e.event_type = 2
+AND e.visit_id NOT IN (
+  SELECT
+    e.visit_id
+  FROM clique_bait.events AS e 
+  WHERE e.event_type = 3
+) 
+AND ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+)
+SELECT * FROM cart_additions_no_purchase
+```
+|product|abandoned_count|
+|-----|-----|
+|Abalone|233|
+|Black Truffle|217|
+|Crab|230|
+|Kingfish|213|
+|Lobster|214|
+|Oyster|217|
+|Russian Caviar|249|
+|Salmon|227|
+|Tuna|234|
+
+* Both CTE combined w/join on the product 
+```sql
+WITH product_views_cart_additions AS (
+SELECT
+  ph.page_name AS product, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS product_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS product_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id
+WHERE ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+),
+cart_additions_no_purchase AS (
+SELECT
+  ph.page_name AS product, 
+  COUNT(*) AS abandoned_count
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id 
+WHERE e.event_type = 2
+AND e.visit_id NOT IN (
+  SELECT
+    e.visit_id
+  FROM clique_bait.events AS e 
+  WHERE e.event_type = 3
+) 
+AND ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+)
+SELECT
+  product,
+  first_cte.product_views,
+  first_cte.product_cart_adds,
+  second_cte.abandoned_count
+FROM product_views_cart_additions AS first_cte
+INNER JOIN cart_additions_no_purchase AS second_cte
+  USING(product)
+```
+|product|product_views|product_cart_adds|abandoned_count|
+|----|-----|-----|-----|
+|Abalone|1525|932|233|
+|Black Truffle|1469|924|217|
+|Crab|1564|949|230|
+|Kingfish|1559|920|213|
+|Lobster|1547|968|214|
+|Oyster|1568|943|217|
+|Russian Caviar|1563|946|249|
+|Salmon|1559|938|227|
+|Tuna|1515|931|234|

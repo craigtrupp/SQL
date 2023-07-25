@@ -188,3 +188,54 @@ INNER JOIN cart_additions_no_purchase AS second_cte
   USING(product)
 
 -- So far to date for the views and cart abandonments for the product table analysis
+
+-- Product Table Generation
+WITH product_views_cart_additions AS (
+SELECT
+  ph.page_name AS product, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS product_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS product_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id
+WHERE ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+),
+cart_additions_no_purchase AS (
+SELECT
+  ph.page_name AS product, 
+  COUNT(*) AS abandoned_count
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id 
+WHERE e.event_type = 2
+AND e.visit_id NOT IN (
+  SELECT
+    e.visit_id
+  FROM clique_bait.events AS e 
+  WHERE e.event_type = 3
+) 
+AND ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+),
+product_joined_values AS (
+-- Output includes the product id so we can do another quick join here to get the product id and match on the page_name which is our aliased product
+SELECT
+  ph.product_id,
+  product,
+  first_cte.product_views,
+  first_cte.product_cart_adds,
+  second_cte.abandoned_count
+FROM product_views_cart_additions AS first_cte
+INNER JOIN cart_additions_no_purchase AS second_cte
+  USING(product)
+INNER JOIN clique_bait.page_hierarchy AS ph 
+  ON product = ph.page_name
+ORDER BY ph.product_id
+)
+SELECT
+  *,
+  product_cart_adds - abandoned_count AS purchases
+FROM product_joined_values;

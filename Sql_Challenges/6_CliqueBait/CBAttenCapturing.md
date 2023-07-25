@@ -778,3 +778,68 @@ INNER JOIN cart_additions_no_purchase AS second_cte
 |Russian Caviar|1563|946|249|
 |Salmon|1559|938|227|
 |Tuna|1515|931|234|
+
+#### `How Many Times was Each Product Purchased`
+* Now as we have the details of abandonents we can deduce the purchases as the table structure is really a boolean yes/no for visit ids if they included a purchase. We can also do a quick join back to page_hierarchy to get the respective product_id
+```sql
+WITH product_views_cart_additions AS (
+SELECT
+  ph.page_name AS product, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS product_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS product_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id
+WHERE ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+),
+cart_additions_no_purchase AS (
+SELECT
+  ph.page_name AS product, 
+  COUNT(*) AS abandoned_count
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id 
+WHERE e.event_type = 2
+AND e.visit_id NOT IN (
+  SELECT
+    e.visit_id
+  FROM clique_bait.events AS e 
+  WHERE e.event_type = 3
+) 
+AND ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+),
+product_joined_values AS (
+-- Output includes the product id so we can do another quick join here to get the product id and match on the page_name which is our aliased product
+SELECT
+  ph.product_id,
+  product,
+  first_cte.product_views,
+  first_cte.product_cart_adds,
+  second_cte.abandoned_count
+FROM product_views_cart_additions AS first_cte
+INNER JOIN cart_additions_no_purchase AS second_cte
+  USING(product)
+INNER JOIN clique_bait.page_hierarchy AS ph 
+  ON product = ph.page_name
+ORDER BY ph.product_id
+)
+SELECT
+  *,
+  product_cart_adds - abandoned_count AS purchases
+FROM product_joined_values;
+```
+|product_id|product|product_views|product_cart_adds|abandoned_count|purchases|
+|----|----|----|---|----|----|
+|1|Salmon|1559|938|227|711|
+|2|Kingfish|1559|920|213|707|
+|3|Tuna|1515|931|234|697|
+|4|Russian Caviar|1563|946|249|697|
+|5|Black Truffle|1469|924|217|707|
+|6|Abalone|1525|932|233|699|
+|7|Lobster|1547|968|214|754|
+|8|Crab|1564|949|230|719|
+|9|Oyster|1568|943|217|726|

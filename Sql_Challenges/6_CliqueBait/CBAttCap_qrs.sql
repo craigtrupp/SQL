@@ -142,3 +142,49 @@ WHERE e.event_type = 3 -- Purchase event_type
 -- now we should have a base table to group by and order by
 GROUP BY ph.product_id, product, product_category
 ORDER BY product_purchases DESC;
+
+
+
+
+------ Section C -------
+------ Product Funnel Analysis ------
+WITH product_views_cart_additions AS (
+SELECT
+  ph.page_name AS product, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS product_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS product_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id
+WHERE ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+),
+cart_additions_no_purchase AS (
+SELECT
+  ph.page_name AS product, 
+  COUNT(*) AS abandoned_count
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id 
+WHERE e.event_type = 2
+AND e.visit_id NOT IN (
+  SELECT
+    e.visit_id
+  FROM clique_bait.events AS e 
+  WHERE e.event_type = 3
+) 
+AND ph.product_id IS NOT NULL
+GROUP BY product
+ORDER BY product
+)
+SELECT
+  product,
+  first_cte.product_views,
+  first_cte.product_cart_adds,
+  second_cte.abandoned_count
+FROM product_views_cart_additions AS first_cte
+INNER JOIN cart_additions_no_purchase AS second_cte
+  USING(product)
+
+-- So far to date for the views and cart abandonments for the product table analysis

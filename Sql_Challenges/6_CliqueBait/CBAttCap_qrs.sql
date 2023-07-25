@@ -189,7 +189,7 @@ INNER JOIN cart_additions_no_purchase AS second_cte
 
 -- So far to date for the views and cart abandonments for the product table analysis
 
--- Product Table Generation
+-- Product Table Generation Entire CTE
 WITH product_views_cart_additions AS (
 SELECT
   ph.page_name AS product, 
@@ -239,3 +239,50 @@ SELECT
   *,
   product_cart_adds - abandoned_count AS purchases
 FROM product_joined_values;
+
+-- Product Category CTE
+-- Very Similar with just a few adjustments to aggregate by the product's category
+WITH product_category_views_cart_adds AS (
+SELECT
+  ph.product_category AS product_category, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS category_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS category_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id
+WHERE ph.product_id IS NOT NULL
+GROUP BY product_category
+),
+cart_additions_no_purchase_categories AS (
+SELECT
+  ph.product_category AS product_category, 
+  COUNT(*) AS abandoned_count
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id 
+WHERE e.event_type = 2
+AND e.visit_id NOT IN (
+  SELECT
+    e.visit_id
+  FROM clique_bait.events AS e 
+  WHERE e.event_type = 3
+) 
+AND ph.product_id IS NOT NULL
+GROUP BY product_category
+),
+category_joined_values AS (
+-- Output includes the product id so we can do another quick join here to get the product id and match on the page_name which is our aliased product
+SELECT
+  product_category,
+  first_cte.category_views,
+  first_cte.category_cart_adds,
+  second_cte.abandoned_count
+FROM product_category_views_cart_adds AS first_cte
+INNER JOIN cart_additions_no_purchase_categories AS second_cte
+  USING(product_category)
+ORDER BY product_category
+)
+SELECT
+  *,
+  category_cart_adds - abandoned_count AS purchases
+FROM category_joined_values;

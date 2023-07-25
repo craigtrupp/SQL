@@ -843,3 +843,71 @@ FROM product_joined_values;
 |7|Lobster|1547|968|214|754|
 |8|Crab|1564|949|230|719|
 |9|Oyster|1568|943|217|726|
+
+<br>
+
+* Additionally, create another table which further aggregates the data for the above points but this time for each product category instead of individual products.
+#### `Category Product Analysis`
+* Can similarly use the base of the query above to create a similar output with a few adjustments to our query
+```sql
+WITH product_category_views_cart_adds AS (
+SELECT
+  ph.product_category AS product_category, 
+  SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS category_views,
+  SUM(CASE WHEN e.event_type = 2 THEN 1 ELSE 0 END) AS category_cart_adds
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id
+WHERE ph.product_id IS NOT NULL
+GROUP BY product_category
+),
+cart_additions_no_purchase_categories AS (
+SELECT
+  ph.product_category AS product_category, 
+  COUNT(*) AS abandoned_count
+FROM clique_bait.page_hierarchy AS ph 
+INNER JOIN clique_bait.events AS e 
+  ON e.page_id = ph.page_id 
+WHERE e.event_type = 2
+AND e.visit_id NOT IN (
+  SELECT
+    e.visit_id
+  FROM clique_bait.events AS e 
+  WHERE e.event_type = 3
+) 
+AND ph.product_id IS NOT NULL
+GROUP BY product_category
+),
+category_joined_values AS (
+-- Output includes the product id so we can do another quick join here to get the product id and match on the page_name which is our aliased product
+SELECT
+  product_category,
+  first_cte.category_views,
+  first_cte.category_cart_adds,
+  second_cte.abandoned_count
+FROM product_category_views_cart_adds AS first_cte
+INNER JOIN cart_additions_no_purchase_categories AS second_cte
+  USING(product_category)
+ORDER BY product_category
+)
+SELECT
+  *,
+  category_cart_adds - abandoned_count AS purchases
+FROM category_joined_values;
+```
+|product_category|category_views|category_cart_adds|abandoned_count|purchases|
+|----|----|----|----|----|
+|Fish|4633|2789|674|2115|
+|Luxury|3032|1870|466|1404|
+|Shellfish|6204|3792|894|2898|
+
+<br>
+
+### **Product Analysis From Created Product & Category Tables**
+
+Use your 2 new output tables - answer the following questions:
+* Which product had the most views, cart adds and purchases?
+* Which product was most likely to be abandoned?
+* Which product had the highest view to purchase percentage?
+* What is the average conversion rate from view to cart add?
+* What is the average conversion rate from cart add to purchase?

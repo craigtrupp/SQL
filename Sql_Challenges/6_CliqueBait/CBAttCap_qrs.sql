@@ -343,3 +343,34 @@ SELECT
   CONCAT(purchase_perc_int, '%') AS percentage_str
 FROM purchase_percentages
 LIMIT 2;
+
+-- 4 Avg Conversion Rate Views to Product Adds
+WITH conversion_rate AS (
+SELECT
+  product,
+  ROUND(product_cart_adds / product_views::NUMERIC, 2) AS conversion_rate_dec,
+  -- Similar Round logic to exclude trailing zeroes
+  ROUND(100 * ROUND(product_cart_adds / product_views::NUMERIC, 3), 2) AS conversion_int
+FROM pfa
+)
+SELECT 
+  ROUND(AVG(conversion_rate_dec), 3) AS avg_conversion_decimal,
+  ROUND(AVG(conversion_int), 2) AS avg_convertion_int,
+  CONCAT(ROUND(AVG(conversion_int), 2), '%') AS avg_conversion_perc
+FROM conversion_rate;
+
+
+-- 5 Avg Conversion Rate Cart Adds to Purchase
+WITH conversion_rate AS (
+SELECT
+  product,
+  ROUND(purchases / product_cart_adds::NUMERIC, 3) AS conversion_rate_dec,
+  -- Similar Round logic to exclude trailing zeroes
+  ROUND(100 * ROUND(purchases / product_cart_adds::NUMERIC, 3), 2) AS conversion_int
+FROM pfa
+)
+SELECT 
+  ROUND(AVG(conversion_rate_dec), 3) AS avg_conversion_decimal,
+  ROUND(AVG(conversion_int), 2) AS avg_convertion_int,
+  CONCAT(ROUND(AVG(conversion_int), 2), '%') AS avg_conversion_perc
+FROM conversion_rate;

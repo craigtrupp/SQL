@@ -314,3 +314,32 @@ SELECT
 FROM pfa
 ORDER BY purchases DESC
 LIMIT 1;
+
+
+-- 2 Product Abandonments 
+SELECT
+  product,
+  product_cart_adds,
+  abandoned_count,
+  ROUND(100 * (abandoned_count::NUMERIC / product_cart_adds), 1) AS abandoned_perc_num,
+  CONCAT(ROUND(100 * (abandoned_count::NUMERIC / product_cart_adds), 1), '%') AS abandoned_perc_str
+FROM pfa
+ORDER BY abandoned_perc_num DESC
+LIMIT 3;
+
+
+-- 3 Views to purchases
+WITH purchase_percentages AS (
+SELECT
+  product,
+  ROUND(purchases::NUMERIC / product_views, 2) AS purchase_perc_dec,
+  -- Using multiple rounds here to narrow down fairly tight percentages on the first percentage and cleaning up to 2 decimal points after multiplying by 100 for 2 decimal points
+  ROUND(100 * ROUND(purchases::NUMERIC / product_views, 4), 2) AS purchase_perc_int
+FROM pfa
+ORDER BY purchase_perc_int DESC
+)
+SELECT
+  *,
+  CONCAT(purchase_perc_int, '%') AS percentage_str
+FROM purchase_percentages
+LIMIT 2;

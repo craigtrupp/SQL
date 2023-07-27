@@ -651,7 +651,7 @@ ORDER BY product_purchases DESC;
 
 <br>
 
-### `Product Funnel Analysis`
+### `C : Product Funnel Analysis`
 **1.** Using a single SQL query - create a new output table which has the following details:
 * How many times was each product viewed?
 * How many times was each product added to cart?
@@ -1022,7 +1022,77 @@ LIMIT 2;
 <br>
 
 **4.** What is the average conversion rate from view to cart add?
+```sql
+WITH conversion_rate AS (
+SELECT
+  product,
+  ROUND(product_cart_adds / product_views::NUMERIC, 2) AS conversion_rate_dec,
+  -- Similar Round logic to exclude trailing zeroes
+  ROUND(100 * ROUND(product_cart_adds / product_views::NUMERIC, 3), 2) AS conversion_int
+FROM pfa
+)
+SELECT 
+  ROUND(AVG(conversion_rate_dec), 3) AS avg_conversion_decimal,
+  ROUND(AVG(conversion_int), 2) AS avg_convertion_int,
+  CONCAT(ROUND(AVG(conversion_int), 2), '%') AS avg_conversion_perc
+FROM conversion_rate;
+```
+|avg_conversion_decimal|avg_convertion_int|avg_conversion_perc|
+|-----|-----|----|
+|0.610|60.96|60.96%|
+
+
 
 <br>
 
 **5.** What is the average conversion rate from cart add to purchase?
+  - Let's also look at the conversion per product 
+```sql
+WITH conversion_rate AS (
+SELECT
+  product,
+  ROUND(purchases / product_cart_adds::NUMERIC, 3) AS conversion_rate_dec,
+  -- Similar Round logic to exclude trailing zeroes
+  ROUND(100 * ROUND(purchases / product_cart_adds::NUMERIC, 3), 2) AS conversion_int
+FROM pfa
+)
+SELECT * FROM conversion_rate;
+```
+|product|conversion_rate_dec|conversion_int|
+|-----|-----|----|
+|Salmon|0.758|75.80|
+|Kingfish|0.768|76.80|
+|Tuna|0.749|74.90|
+|Russian Caviar|0.737|73.70|
+|Black Truffle|0.765|76.50|
+|Abalone|0.750|75.00|
+|Lobster|0.779|77.90|
+|Crab|0.758|75.80|
+|Oyster|0.770|77.00|
+
+* Now to the average
+```sql
+WITH conversion_rate AS (
+SELECT
+  product,
+  ROUND(purchases / product_cart_adds::NUMERIC, 3) AS conversion_rate_dec,
+  -- Similar Round logic to exclude trailing zeroes
+  ROUND(100 * ROUND(purchases / product_cart_adds::NUMERIC, 3), 2) AS conversion_int
+FROM pfa
+)
+SELECT 
+  ROUND(AVG(conversion_rate_dec), 3) AS avg_conversion_decimal,
+  ROUND(AVG(conversion_int), 2) AS avg_convertion_int,
+  CONCAT(ROUND(AVG(conversion_int), 2), '%') AS avg_conversion_perc
+FROM conversion_rate;
+```
+|avg_conversion_decimal|avg_convertion_int|avg_conversion_perc|
+|----|-----|----|
+|0.759|75.93|75.93%|
+
+--- 
+
+<br>
+
+### `D. Campaigns Analysis`
+* Generate a table that has 1 single row for every unique `visit_id` record and has the following columns:

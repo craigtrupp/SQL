@@ -147,6 +147,7 @@ ORDER BY product_purchases DESC;
 
 
 ------ Section C -------
+----- Temp Tables Syntax Shown in Markdown for storing CTE return into accessible table ---
 ------ Product Funnel Analysis ------
 WITH product_views_cart_additions AS (
 SELECT
@@ -286,3 +287,30 @@ SELECT
   *,
   category_cart_adds - abandoned_count AS purchases
 FROM category_joined_values;
+
+
+----- Product Funnel Analysis ------
+
+-- 1 - Max values for particular product event data (views, adds, purchases)
+-- Max product views
+SELECT
+  product,
+  product_views AS max_product_views
+FROM pfa
+WHERE product_views = (SELECT MAX(product_views) FROM pfa);
+
+-- Most Cart Adds
+SELECT
+  product,
+  product_cart_adds
+FROM pfa
+ORDER BY product_cart_adds DESC
+LIMIT 1;
+
+-- Most purchases
+SELECT
+  product,
+  purchases
+FROM pfa
+ORDER BY purchases DESC
+LIMIT 1;

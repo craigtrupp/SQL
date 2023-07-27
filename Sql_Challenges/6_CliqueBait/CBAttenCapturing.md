@@ -782,9 +782,8 @@ INNER JOIN cart_additions_no_purchase AS second_cte
 #### `How Many Times was Each Product Purchased`
 * Now as we have the details of abandonents we can deduce the purchases as the table structure is really a boolean yes/no for visit ids if they included a purchase. We can also do a quick join back to page_hierarchy to get the respective product_id
 ```sql
-CREATE TEMPORARY TABLE IF NOT EXISTS
-pfa AS 
-(WITH product_views_cart_additions AS (
+CREATE TEMPORARY TABLE IF NOT EXISTS pfa AS
+WITH product_views_cart_additions AS (
 SELECT
   ph.page_name AS product, 
   SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS product_views,
@@ -832,9 +831,7 @@ ORDER BY ph.product_id
 SELECT
   *,
   product_cart_adds - abandoned_count AS purchases
-FROM product_joined_values);
-
-
+FROM product_joined_values;
 SELECT * FROM pfa;
 ```
 * Creating Temporary Table for Easier Query for next set of questions
@@ -857,7 +854,8 @@ SELECT * FROM pfa;
 #### `Category Product Analysis`
 * Can similarly use the base of the query above to create a similar output with a few adjustments to our query
 ```sql
-CREATE TEMPORARY TABLE pcfa AS (
+DROP TABLE IF EXISTS pcfa;
+CREATE TEMP TABLE pcfa AS 
 WITH product_category_views_cart_adds AS (
 SELECT
   ph.product_category AS product_category, 
@@ -901,8 +899,7 @@ ORDER BY product_category
 SELECT
   *,
   category_cart_adds - abandoned_count AS purchases
-FROM category_joined_values);
-
+FROM category_joined_values;
 ```
 * Similar to above we'll make a temporary table for the next set of PFA and PFCA (product and product category funnel analysis)
 
@@ -917,8 +914,115 @@ FROM category_joined_values);
 ### **Product Analysis From Created Product & Category Tables**
 
 Use your 2 new output tables - answer the following questions:
-* Which product had the most views, cart adds and purchases?
-* Which product was most likely to be abandoned?
-* Which product had the highest view to purchase percentage?
-* What is the average conversion rate from view to cart add?
-* What is the average conversion rate from cart add to purchase?
+* Output the column types from one of your temp tables
+  - Good reminder here of the ability for temp tables and getting their detail/type if needed
+```sql
+SELECT
+    column_name,
+    data_type
+FROM
+    information_schema.columns
+WHERE
+    table_name = 'pfa';
+```
+|column_name|data_type|
+|----|----|
+|product_id|integer|
+|product|character varying|
+|product_views|bigint|
+|product_cart_adds|bigint|
+|abandoned_count|bigint|
+|purchases|bigint|
+
+<br>
+
+**1.** Which product had the most views, cart adds and purchases?
+  - We'll do a few different methods to get the max values for each categorical count
+```sql
+-- Max product views
+SELECT
+  product,
+  product_views AS max_product_views
+FROM pfa
+WHERE product_views = (SELECT MAX(product_views) FROM pfa);
+
+-- Most Cart Adds
+SELECT
+  product,
+  product_cart_adds
+FROM pfa
+ORDER BY product_cart_adds DESC
+LIMIT 1;
+
+-- Most purchases
+SELECT
+  product,
+  purchases
+FROM pfa
+ORDER BY purchases DESC
+LIMIT 1;
+```
+|product|max_product_views|
+|----|----|
+|Oyster|1568|
+
+|product|product_cart_adds|
+|----|----|
+|Lobster|968|
+
+|product|purchases|
+|----|----|
+|Lobster|754|
+
+<br>
+
+**2.** Which product was most likely to be abandoned?
+  - This can be interpreted as the the product being added to the cart but not subsequently purchased 
+```sql
+SELECT
+  product,
+  product_cart_adds,
+  abandoned_count,
+  ROUND(100 * (abandoned_count::NUMERIC / product_cart_adds), 1) AS abandoned_perc_num,
+  CONCAT(ROUND(100 * (abandoned_count::NUMERIC / product_cart_adds), 1), '%') AS abandoned_perc_str
+FROM pfa
+ORDER BY abandoned_perc_num DESC
+LIMIT 3;
+```
+|product|product_cart_adds|abandoned_count|abandoned_perc_num|abandoned_perc_str|
+|-----|-----|-----|-----|-----|
+|Russian Caviar|946|249|26.3|26.3%|
+|Tuna|931|234|25.1|25.1%|
+|Abalone|932|233|25.0|25.0%|
+
+<br>
+
+**3.** Which product had the highest view to purchase percentage?
+```sql
+WITH purchase_percentages AS (
+SELECT
+  product,
+  ROUND(purchases::NUMERIC / product_views, 2) AS purchase_perc_dec,
+  -- Using multiple rounds here to narrow down fairly tight percentages on the first percentage and cleaning up to 2 decimal points after multiplying by 100 for 2 decimal points
+  ROUND(100 * ROUND(purchases::NUMERIC / product_views, 4), 2) AS purchase_perc_int
+FROM pfa
+ORDER BY purchase_perc_int DESC
+)
+SELECT
+  *,
+  CONCAT(purchase_perc_int, '%') AS percentage_str
+FROM purchase_percentages
+LIMIT 2;
+```
+|product|purchase_perc_dec|purchase_perc_int|percentage_str|
+|-----|-----|-----|-----|
+|Lobster|0.49|48.74|48.74%|
+|Black Truffle|0.48|48.13|48.13%|
+
+<br>
+
+**4.** What is the average conversion rate from view to cart add?
+
+<br>
+
+**5.** What is the average conversion rate from cart add to purchase?

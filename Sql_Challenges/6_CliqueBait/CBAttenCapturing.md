@@ -782,7 +782,9 @@ INNER JOIN cart_additions_no_purchase AS second_cte
 #### `How Many Times was Each Product Purchased`
 * Now as we have the details of abandonents we can deduce the purchases as the table structure is really a boolean yes/no for visit ids if they included a purchase. We can also do a quick join back to page_hierarchy to get the respective product_id
 ```sql
-WITH product_views_cart_additions AS (
+CREATE TEMPORARY TABLE IF NOT EXISTS
+pfa AS 
+(WITH product_views_cart_additions AS (
 SELECT
   ph.page_name AS product, 
   SUM(CASE WHEN e.event_type = 1 THEN 1 ELSE 0 END) AS product_views,
@@ -830,8 +832,13 @@ ORDER BY ph.product_id
 SELECT
   *,
   product_cart_adds - abandoned_count AS purchases
-FROM product_joined_values;
+FROM product_joined_values);
+
+
+SELECT * FROM pfa;
 ```
+* Creating Temporary Table for Easier Query for next set of questions
+
 |product_id|product|product_views|product_cart_adds|abandoned_count|purchases|
 |----|----|----|---|----|----|
 |1|Salmon|1559|938|227|711|
@@ -850,6 +857,7 @@ FROM product_joined_values;
 #### `Category Product Analysis`
 * Can similarly use the base of the query above to create a similar output with a few adjustments to our query
 ```sql
+CREATE TEMPORARY TABLE pcfa AS (
 WITH product_category_views_cart_adds AS (
 SELECT
   ph.product_category AS product_category, 
@@ -893,8 +901,11 @@ ORDER BY product_category
 SELECT
   *,
   category_cart_adds - abandoned_count AS purchases
-FROM category_joined_values;
+FROM category_joined_values);
+
 ```
+* Similar to above we'll make a temporary table for the next set of PFA and PFCA (product and product category funnel analysis)
+
 |product_category|category_views|category_cart_adds|abandoned_count|purchases|
 |----|----|----|----|----|
 |Fish|4633|2789|674|2115|

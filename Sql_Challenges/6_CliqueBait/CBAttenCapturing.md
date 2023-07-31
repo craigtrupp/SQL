@@ -1096,3 +1096,49 @@ FROM conversion_rate;
 
 ### `D. Campaigns Analysis`
 * Generate a table that has 1 single row for every unique `visit_id` record and has the following columns:
+  - user_id
+  - visit_id
+  - visit_start_time: the earliest event_time for each visit
+  - page_views: count of page views for each visit
+  - cart_adds: count of product cart add events for each visit
+  - purchase: 1/0 flag if a purchase event exists for each visit
+  - campaign_name: map the visit to a campaign if the visit_start_time falls between the start_date and end_date
+  - impression: count of ad impressions for each visit
+  - click: count of ad clicks for each visit
+  - (Optional column) cart_products: a comma separated text value with products added to the cart sorted by the order they were added to the cart (hint: use the sequence_number)
+
+<br>
+
+* Initial Grouping of User Events Up to the `Campaign_Name` mapping to a visits' events
+```sql
+WITH user_visits AS (
+SELECT
+  evt.visit_id AS visit_id , evt.cookie_id AS cookie_id, usr.user_id AS user_id, evt.event_type, evt_id.event_name, evt.sequence_number, evt.event_time
+FROM clique_bait.events AS evt
+INNER JOIN clique_bait.users AS usr
+  ON evt.cookie_id = usr.cookie_id
+INNER JOIN clique_bait.event_identifier AS evt_id 
+  ON evt.event_type = evt_id.event_type
+ORDER BY evt.visit_id, evt.event_time, evt.sequence_number
+)
+SELECT
+  visit_id, user_id, cookie_id,
+  MIN(usrvts.event_time) AS visit_start_time,
+  SUM(CASE WHEN usrvts.event_name = 'Page View' THEN 1 ELSE 0 END) AS user_visit_page_views,
+  SUM(CASE WHEN usrvts.event_name = 'Add to Cart' THEN 1 ELSE 0 END) AS user_visit_cart_adds,
+  SUM(CASE WHEN usrvts.event_name = 'Purchase' THEN 1 ELSE 0 END) AS user_visit_purchase_flag
+FROM user_visits AS usrvts
+GROUP BY visit_id, user_id, cookie_id
+ORDER BY visit_start_time
+LIMIT 5;
+```
+|visit_id|user_id|cookie_id|visit_start_time|user_visit_page_views|user_visit_cart_adds|user_visit_purchase_flag|
+|----|-----|----|----|-----|-----|----|
+|04ff73|124|c8ffe9|2020-01-01 07:44:56.541|8|3|1|
+|1c6058|391|5a4b25|2020-01-01 08:16:13.952|4|0|0|
+|73a060|146|a5e001|2020-01-01 12:44:28.729|8|3|0|
+|fac4c6|391|5a4b25|2020-01-01 13:30:16.983|1|0|0|
+|6e1589|379|a02ffd|2020-01-01 13:47:53.716|7|3|1|
+
+* The `users` table has a log event event for each user by the `cookie_id`, when grouping by the events a purchase flag can only exists once so we can use a `SUM(CASE WHEN)` type structure similar to the counting of page views and cart adds for different products
+* We could llikely use the `sequence_number` as well which track the events per visits but the result would be the same for the `MIN` call we're making on the field to then look next into the campaign visit details and product values which we initially could condense as one row item with an `to_array` type call. 

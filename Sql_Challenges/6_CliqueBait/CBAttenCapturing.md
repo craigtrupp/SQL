@@ -1259,3 +1259,141 @@ SELECT * FROM user_cart_products WHERE visit in ('0fc437', '30b94d', '41355d', '
 |ccf365|1|2020-02-04 19:16:09.183|7|3|1|0|0|Lobster, Crab, Oyster|
 |30b94d|1|2020-03-15 13:12:54.024|9|7|1|1|1|Salmon, Kingfish, Tuna, Russian Caviar, Abalone, Lobster, Crab|
 |41355d|1|2020-03-25 00:11:17.861|6|1|0|0|0|Lobster|
+
+<br>
+
+* Lastly, for the `campign_name` we only have three campaign that the `visit_start_time` would potentially classify under
+```sql
+-- Total Rows
+SELECT COUNT(*) FROM clique_bait.campaign_identifier;
+```
+|count|
+|---|
+|3|
+
+```sql
+SELECT * FROM clique_bait.campaign_identifier
+```
+|campaign_id|products|campaign_name|start_date|end_date|
+|-----|-----|-----|-----|----|
+|1|1-3|BOGOF - Fishing For Compliments|2020-01-01|2020-01-14|
+|2|4-5|25% Off - Living The Lux Life|2020-01-15|2020-01-28|
+|3|6-8|Half Off - Treat Your Shellf(ish)|2020-02-01|2020-03-31|
+
+* Now, let's see what our event's minimum and maximum campaign time was 
+```sql
+SELECT
+  MIN(visit_start_time) AS earliest_tracked_visit,
+  MAX(visit_start_time) AS latest_tracked_visit
+FROM campaign_analysis;
+```
+|earliest_tracked_visit|latest_tracked_visit|
+|-----|-----|
+|2020-01-01 07:44:56.541|2020-05-28 20:11:54.997|
+
+* So based off of the output of our temp_table, we would need to structure a conditional case for a `campaign_name` 
+
+```sql
+DROP TABLE IF EXISTS campaign_analysis;
+CREATE TEMP TABLE campaign_analysis AS 
+WITH user_visits AS (
+SELECT
+  evt.visit_id AS visit , usr.user_id AS usr, evt.event_type, evt_id.event_name, evt.sequence_number, evt.event_time
+FROM clique_bait.events AS evt
+INNER JOIN clique_bait.users AS usr
+  ON evt.cookie_id = usr.cookie_id
+INNER JOIN clique_bait.event_identifier AS evt_id 
+  ON evt.event_type = evt_id.event_type
+ORDER BY visit, evt.event_time, evt.sequence_number
+),
+user_visit_details AS (
+SELECT
+  visit, usr,
+  MIN(usrvts.event_time) AS visit_start_time,
+  SUM(CASE WHEN usrvts.event_name = 'Page View' THEN 1 ELSE 0 END) AS page_views,
+  SUM(CASE WHEN usrvts.event_name = 'Add to Cart' THEN 1 ELSE 0 END) AS cart_adds,
+  SUM(CASE WHEN usrvts.event_name = 'Purchase' THEN 1 ELSE 0 END) AS purchase_flag,
+  SUM(CASE WHEN usrvts.event_name = 'Ad Impression' THEN 1 ELSE 0 END) AS ad_impressions,
+  SUM(CASE WHEN usrvts.event_name = 'Ad Click' THEN 1 ELSE 0 END) AS ad_clicks
+FROM user_visits AS usrvts
+GROUP BY visit, usr
+ORDER BY visit_start_time
+),
+user_cart_products AS (
+SELECT
+  *,
+  CASE
+    WHEN cart_adds < 1 THEN 'Zero'
+    -- Subquery for aggregating customer products (ensure that the join is only looking for each row's visit or the subquery will return more than one row)
+    ELSE (
+      SELECT
+      -- let's aggregate the products and then unpack the array into a comma separate list
+        array_to_string(array_agg(ph.page_name ORDER BY evts.sequence_number), ', ') AS cart_products 
+      FROM clique_bait.events AS evts 
+      INNER JOIN clique_bait.page_hierarchy AS ph 
+        ON evts.page_id = ph.page_id
+      -- We have access to the unique visit_id in the aliased visit for user_visit_details in the above cte to 
+      WHERE evts.event_type = 2 AND evts.visit_id = visit
+      GROUP BY evts.visit_id
+    )
+  END AS usr_cart_products
+FROM user_visit_details
+),
+campaign_classifier AS (
+SELECT 
+  *,
+  CASE 
+    WHEN visit_start_time BETWEEN (SELECT start_date FROM clique_bait.campaign_identifier WHERE campaign_id = 1) AND (SELECT end_date FROM clique_bait.campaign_identifier WHERE campaign_id = 1)
+      THEN (SELECT campaign_name FROM clique_bait.campaign_identifier WHERE campaign_id = 1)
+    WHEN visit_start_time BETWEEN (SELECT start_date FROM clique_bait.campaign_identifier WHERE campaign_id = 2) AND (SELECT end_date FROM clique_bait.campaign_identifier WHERE campaign_id = 2)
+      THEN (SELECT campaign_name FROM clique_bait.campaign_identifier WHERE campaign_id = 2)
+    WHEN visit_start_time BETWEEN (SELECT start_date FROM clique_bait.campaign_identifier WHERE campaign_id = 3) AND (SELECT end_date FROM clique_bait.campaign_identifier WHERE campaign_id = 3)
+      THEN (SELECT campaign_name FROM clique_bait.campaign_identifier WHERE campaign_id = 3)
+    ELSE 'No detailed campaign'
+  END AS campaign
+FROM user_cart_products
+)
+-- Assign all data to temporary table
+SELECT * FROM campaign_classifier;
+-- Preview Temp Table Contents
+SELECT * FROM campaign_analysis LIMIT 5;
+```
+|visit|usr|visit_start_time|page_views|cart_adds|purchase_flag|ad_impressions|ad_clicks|usr_cart_products|campaign|
+|----|---|----|----|----|----|----|-----|-----|-----|
+|04ff73|124|2020-01-01 07:44:56.541|8|3|1|0|0|Salmon, Kingfish, Abalone|BOGOF - Fishing For Compliments|
+|1c6058|391|2020-01-01 08:16:13.952|4|0|0|0|0|Zero|BOGOF - Fishing For Compliments|
+|73a060|146|2020-01-01 12:44:28.729|8|3|0|0|0|Abalone, Lobster, Oyster|BOGOF - Fishing For Compliments|
+|fac4c6|391|2020-01-01 13:30:16.983|1|0|0|0|0|Zero|BOGOF - Fishing For Compliments|
+|6e1589|379|2020-01-01 13:47:53.716|7|3|1|0|0|Russian Caviar, Black Truffle, Crab|BOGOF - Fishing For Compliments|
+
+* Alright it looks like we have the campaign but we can do some quick counts to better understand what we have for the group by counts for the campaign
+```sql
+-- Validate counts of generated table against distinct counts of events 
+SELECT COUNT(*) FROM campaign_analysis
+UNION ALL
+SELECT COUNT(DISTINCT visit_id) FROM clique_bait.events;
+```
+|count|
+|---|
+|3564|
+|3564|
+
+```sql
+SELECT
+  campaign,
+  COUNT(*) AS campaign_totals,
+  SUM(COUNT(*)) OVER() AS row_check
+FROM campaign_analysis
+GROUP BY campaign 
+ORDER BY campaign_totals DESC;
+```
+|campaign|campaign_totals|row_check|
+|----|-----|-----|
+|Half Off - Treat Your Shellf(ish)|2388|3564|
+|No detailed campaign|512|3564|
+|25% Off - Living The Lux Life|404|3564|
+|BOGOF - Fishing For Compliments|260|3564|
+
+* The `Window` sum for the grouped by counts matches our unique campaign counts so our conditional cases have caught the `visit_start_time` and assigned a found campaign!
+* We're done!!!
+* It would likely be a view with some other details for future evaluation

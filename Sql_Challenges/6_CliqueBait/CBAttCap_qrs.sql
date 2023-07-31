@@ -424,3 +424,67 @@ SELECT
 FROM user_visit_details
 )
 SELECT * FROM user_cart_products;
+
+
+--- All details including Campaign now in a temporary table
+DROP TABLE IF EXISTS campaign_analysis;
+CREATE TEMP TABLE campaign_analysis AS 
+WITH user_visits AS (
+SELECT
+  evt.visit_id AS visit , usr.user_id AS usr, evt.event_type, evt_id.event_name, evt.sequence_number, evt.event_time
+FROM clique_bait.events AS evt
+INNER JOIN clique_bait.users AS usr
+  ON evt.cookie_id = usr.cookie_id
+INNER JOIN clique_bait.event_identifier AS evt_id 
+  ON evt.event_type = evt_id.event_type
+ORDER BY visit, evt.event_time, evt.sequence_number
+),
+user_visit_details AS (
+SELECT
+  visit, usr,
+  MIN(usrvts.event_time) AS visit_start_time,
+  SUM(CASE WHEN usrvts.event_name = 'Page View' THEN 1 ELSE 0 END) AS page_views,
+  SUM(CASE WHEN usrvts.event_name = 'Add to Cart' THEN 1 ELSE 0 END) AS cart_adds,
+  SUM(CASE WHEN usrvts.event_name = 'Purchase' THEN 1 ELSE 0 END) AS purchase_flag,
+  SUM(CASE WHEN usrvts.event_name = 'Ad Impression' THEN 1 ELSE 0 END) AS ad_impressions,
+  SUM(CASE WHEN usrvts.event_name = 'Ad Click' THEN 1 ELSE 0 END) AS ad_clicks
+FROM user_visits AS usrvts
+GROUP BY visit, usr
+ORDER BY visit_start_time
+),
+user_cart_products AS (
+SELECT
+  *,
+  CASE
+    WHEN cart_adds < 1 THEN 'Zero'
+    -- Subquery for aggregating customer products (ensure that the join is only looking for each row's visit or the subquery will return more than one row)
+    ELSE (
+      SELECT
+      -- let's aggregate the products and then unpack the array into a comma separate list
+        array_to_string(array_agg(ph.page_name ORDER BY evts.sequence_number), ', ') AS cart_products 
+      FROM clique_bait.events AS evts 
+      INNER JOIN clique_bait.page_hierarchy AS ph 
+        ON evts.page_id = ph.page_id
+      -- We have access to the unique visit_id in the aliased visit for user_visit_details in the above cte to 
+      WHERE evts.event_type = 2 AND evts.visit_id = visit
+      GROUP BY evts.visit_id
+    )
+  END AS usr_cart_products
+FROM user_visit_details
+),
+campaign_classifier AS (
+SELECT 
+  *,
+  CASE 
+    WHEN visit_start_time BETWEEN (SELECT start_date FROM clique_bait.campaign_identifier WHERE campaign_id = 1) AND (SELECT end_date FROM clique_bait.campaign_identifier WHERE campaign_id = 1)
+      THEN (SELECT campaign_name FROM clique_bait.campaign_identifier WHERE campaign_id = 1)
+    WHEN visit_start_time BETWEEN (SELECT start_date FROM clique_bait.campaign_identifier WHERE campaign_id = 2) AND (SELECT end_date FROM clique_bait.campaign_identifier WHERE campaign_id = 2)
+      THEN (SELECT campaign_name FROM clique_bait.campaign_identifier WHERE campaign_id = 2)
+    WHEN visit_start_time BETWEEN (SELECT start_date FROM clique_bait.campaign_identifier WHERE campaign_id = 3) AND (SELECT end_date FROM clique_bait.campaign_identifier WHERE campaign_id = 3)
+      THEN (SELECT campaign_name FROM clique_bait.campaign_identifier WHERE campaign_id = 3)
+    ELSE 'No detailed campaign'
+  END AS campaign
+FROM user_cart_products
+)
+-- Assign all data to temporary table
+SELECT * FROM campaign_classifier;

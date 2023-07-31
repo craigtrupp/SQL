@@ -1142,3 +1142,48 @@ LIMIT 5;
 
 * The `users` table has a log event event for each user by the `cookie_id`, when grouping by the events a purchase flag can only exists once so we can use a `SUM(CASE WHEN)` type structure similar to the counting of page views and cart adds for different products
 * We could llikely use the `sequence_number` as well which track the events per visits but the result would be the same for the `MIN` call we're making on the field to then look next into the campaign visit details and product values which we initially could condense as one row item with an `to_array` type call. 
+* Now we can also omit the `cookie_id` and condense our columns here for better readability and look to get the `cart_products` should we have a sum greater than or equal to 1 for the user_visit_cart_adds column
+
+#### `User Cart Products Exploratory`
+```sql
+-- Looking at 2 of our visits that had cart adds
+SELECT *
+FROM clique_bait.events AS evts 
+INNER JOIN clique_bait.page_hierarchy AS ph 
+  ON evts.page_id = ph.page_id
+WHERE evts.visit_id in ('04ff73', '73a060') AND evts.event_type = 2
+ORDER BY evts.visit_id, evts.sequence_number;
+```
+|visit_id|cookie_id|page_id|event_type|sequence_number|event_time|page_name|product_category|product_id|
+|---|----|---|----|----|-----|-----|----|-----|
+|04ff73|c8ffe9|3|2|4|2020-01-01 07:46:14.973|Salmon|Fish|1|
+|04ff73|c8ffe9|4|2|6|2020-01-01 07:47:31.675|Kingfish|Fish|2|
+|04ff73|c8ffe9|8|2|9|2020-01-01 07:48:58.896|Abalone|Shellfish|6|
+|73a060|a5e001|8|2|6|2020-01-01 12:46:53.028|Abalone|Shellfish|6|
+|73a060|a5e001|9|2|8|2020-01-01 12:47:50.560|Lobster|Shellfish|7|
+|73a060|a5e001|11|2|10|2020-01-01 12:48:24.712|Oyster|Shellfish|9|
+
+* So what we can see using two sample visit ids from our user events table above is the products added to the cart orderd by the sequence_numbers of event type for the visit resulting in a cart add. **Next** we would be looking to consolidate either the `page_name` (which in this case serves as our product) into a single row.
+* **Also**, we have with the event types (4 & 5) equaling the **ad_impression** and **ad_clicks** that we can likely aggregate in our first step as well to modify that user_events_table logging, but first let's see about aggregating and then unpacking the products in sequential order.
+
+```sql
+WITH visit_return AS (
+SELECT
+  evts.visit_id AS visit,
+  array_agg(ph.page_name ORDER BY evts.sequence_number) AS cart_products -- let's aggregate the products and order by the sequence_number
+FROM clique_bait.events AS evts 
+INNER JOIN clique_bait.page_hierarchy AS ph 
+  ON evts.page_id = ph.page_id
+WHERE evts.visit_id in ('04ff73', '73a060') AND evts.event_type = 2
+GROUP BY evts.visit_id
+ORDER BY evts.visit_id
+)
+SELECT
+  array_to_string(cart_products, ', '),
+  cart_products
+FROM visit_return;
+```
+|array_to_string|cart_products|
+|-----|-----|
+|Salmon, Kingfish, Abalone|[ "Salmon", "Kingfish", "Abalone" ]|
+|Abalone, Lobster, Oyster|[ "Abalone", "Lobster", "Oyster" ]|

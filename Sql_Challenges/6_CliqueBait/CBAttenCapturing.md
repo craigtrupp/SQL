@@ -96,9 +96,51 @@ The sequence_number is used to order the events within each visit.
 ### **Case Study Questions**
 
 #### `A. Enterprise Relationship Diagram`
-* Using the following DDL schema details to create an ERD for all the Clique Bait datasets.
-    - ... aight I'm gonna get here but using MySQLWorkBench as well for familiarity with that tool and likely reverse engineering
-    - More to come here but let's get to querying to kick the project off
+```sql
+Table "clique_bait"."campaign_identifier" {
+  campaign_id INTEGER [primary key]
+  products VARCHAR(30) [default: '1-3']
+  campaign_name VARCHAR(30) [not null, unique]
+  start_date TIMESTAMP 
+  end_date TIMESTAMP
+}
+
+Table "clique_bait"."event_identifier" {
+  event_type INTEGER [primary key]
+  event_name VARCHAR(50) [not null, unique]
+}
+
+Table "clique_bait"."events" {
+  visit_id VARCHAR(6)
+  cookie_id VARCHAR(6) [ref: > clique_bait.users.cookie_id]
+  page_id INTEGER [ref: > clique_bait.page_hierarchy.page_id]
+  event_type INTEGER [ref: > clique_bait.event_identifier.event_type]
+  sequence_number INTEGER 
+  event_time TIMESTAMP
+  
+  Indexes {
+    (visit_id, cookie_id) [name:"unique_visit"]
+  }
+}
+
+Table "clique_bait"."page_hierarchy" {
+  page_id INTEGER [primary key]
+  page_name VARCHAR(50) [default: 'Home Page']
+  product_category VARCHAR(100)
+  product_id INTEGER 
+  Indexes {
+    (product_category, product_id)[name:'unique_product_cat']
+  }
+}
+
+Table "clique_bait"."users" {
+  user_id INTEGER [primary key]
+  cookie_id VARCHAR(8) [primary key]
+  start_date TIMESTAMP
+}
+```
+![ERD](images/clique_bait_schema.png)
+* https://dbdiagram.io/d/64c8195a02bd1c4a5e01a62c
 
 <br>
 

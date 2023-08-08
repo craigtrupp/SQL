@@ -300,6 +300,7 @@ FROM unique_prod_per_txn;
 **3.** What are the 25th, 50th and 75th percentile values for the revenue per transaction?
 
 * So just some first thoughts here. How is our pricing from sales against the product details.
+* ... Also, this diverges a bit into percentile discussion and how to calculate in **sql** and **python**
 ```sql
 -- Let's confirm that sales price and product_price is the same 
 SELECT
@@ -367,6 +368,26 @@ AttributeError: module 'math' has no attribute 'round'
 '66.67%'
 ```
 ![percentile_eq](images/percentile_eq.png)
+
+```sql
+WITH transaction_avgs AS (
+SELECT
+  txn_id,
+  ROUND(SUM(qty * price), 2) AS txn_avg
+FROM balanced_tree.sales
+GROUP BY txn_id
+)
+SELECT
+  CAST(PERCENTILE_CONT(.25) WITHIN GROUP(ORDER BY txn_avg)::NUMERIC AS MONEY) AS twenty_fifth_percentile,
+  CAST(PERCENTILE_CONT(.5) WITHIN GROUP(ORDER BY txn_avg)::NUMERIC AS MONEY) AS fiftieth_percentile,
+  CAST(ROUND(AVG(txn_avg), 2) AS MONEY) AS mean_txn_avg,
+  -- cannot cast type double precision to money if not converting the percentile return to numeric
+  CAST(PERCENTILE_CONT(.75) WITHIN GROUP(ORDER BY txn_avg)::NUMERIC AS MONEY) AS seventh_fifth_percentile
+FROM transaction_avgs;
+```
+|twenty_fifth_percentile|fiftieth_percentile|mean_txn_avg|seventh_fifth_percentile|
+|------|-----|-----|-----|
+|$375.75|$509.50|$515.78|$647.00|
 
 **4.** What is the average discount value per transaction?
 

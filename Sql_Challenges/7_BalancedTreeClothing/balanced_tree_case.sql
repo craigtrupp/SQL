@@ -85,3 +85,42 @@ SELECT
   -- cannot cast type double precision to money if not converting the percentile return to numeric
   CAST(PERCENTILE_CONT(.75) WITHIN GROUP(ORDER BY txn_avg)::NUMERIC AS MONEY) AS seventh_fifth_percentile
 FROM transaction_avgs;
+
+
+-- 4 (See Progression of queries)
+-- First Was simply looking at a transaction total sum with & w/o a discount applied to the sale logic
+SELECT
+  txn_id,
+  -- Sum of Each sale in all sales for a transaction w a discount applied to the price and qty for each sale in an order 
+  -- Recall discount applied as discount (which is integer) / 100 * price, then the price minus that to subtract discount amount from price before multiply by the quantity purchased 
+  ROUND(SUM(qty * (price - ( price * (discount/100::NUMERIC) ) ) ), 2) AS txn_total_w_discount,
+  -- Sum of Each sale in all sales for a transaction w/o a discount applied to the price and qty for each sale in an order
+  SUM(qty * price) AS txn_total_wo_discount
+FROM balanced_tree.sales
+WHERE txn_id = '54f307'
+GROUP BY txn_id
+
+-- Next we do a individual sale discount query for one transaction to see the total discount pre/post discount for each sale in a txn
+WITH individual_txn_sale_details AS (
+SELECT
+  prod_id, txn_id, qty, price, discount,
+  ROUND (
+  -- Remember you want to perform the window operation on each row prior to rounding the value returned from it 
+    SUM(qty * (price - ( price * (discount/100::NUMERIC) ) ) )
+      OVER (
+        PARTITION BY prod_id, txn_id
+    )
+  , 2 ) AS sale_discount,
+  ROUND (
+    SUM(qty * price ) OVER (
+      PARTITION BY prod_id, txn_id
+    )
+  , 2) AS sale_pre_discount
+FROM balanced_tree.sales
+WHERE txn_id = '54f307'
+)
+SELECT 
+  *,
+  SUM(sale_discount) OVER() AS txn_total_discount_sum,
+  SUM(sale_pre_discount) OVER() AS txn_total_sum_no_discount
+FROM individual_txn_sale_details

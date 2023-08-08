@@ -393,7 +393,69 @@ FROM transaction_avgs;
 |------|-----|-----|-----|
 |$375.75|$509.50|$515.78|$647.00|
 
+<br>
+
 **4.** What is the average discount value per transaction?
+* We'll look at one row first here for how I take it. We would want to find the sum of all sales in a transaction prior to the discount and after to get a **total discount value** for the entire transaction which is a series of sales.
+    - We can look at one order first **note** the shared : `txn_id` 
+
+|prod_id|qty|price|discount|member|txn_id|start_txn_time|
+|----|----|---|----|----|-----|----|
+|c4a632|4|13|17|true|54f307|2021-02-13 01:59:43.296|
+|5d267b|4|40|17|true|54f307|2021-02-13 01:59:43.296|
+|b9a74d|4|17|17|true|54f307|2021-02-13 01:59:43.296|
+|2feb6b|2|29|17|true|54f307|2021-02-13 01:59:43.296|
+
+```sql
+SELECT
+  txn_id,
+  -- Sum of Each sale in all sales for a transaction w a discount applied to the price and qty for each sale in an order 
+  -- Recall discount applied as discount (which is integer) / 100 * price, then the price minus that to subtract discount amount from price before multiply by the quantity purchased 
+  ROUND(SUM(qty * (price - ( price * (discount/100::NUMERIC) ) ) ), 2) AS txn_total_w_discount,
+  -- Sum of Each sale in all sales for a transaction w/o a discount applied to the price and qty for each sale in an order
+  SUM(qty * price) AS txn_total_wo_discount
+FROM balanced_tree.sales
+WHERE txn_id = '54f307'
+GROUP BY txn_id
+```
+|txn_id|txn_total_w_discount|txn_total_wo_discount|
+|----|----|----|
+|54f307|280.54|338|
+
+* As we can see here for the transaction that the sum total after applied the price discount is substantial!
+    - Let's dig a bit deeper and use a `WINDOW FUNCTION` to look at an individual transaction sale discount applied at each level and validate the sum values from above on the entire total 
+
+```sql
+WITH individual_txn_sale_details AS (
+SELECT
+  prod_id, txn_id, qty, price, discount,
+  ROUND (
+  -- Remember you want to perform the window operation on each row prior to rounding the value returned from it 
+    SUM(qty * (price - ( price * (discount/100::NUMERIC) ) ) )
+      OVER (
+        PARTITION BY prod_id, txn_id
+    )
+  , 2 ) AS sale_discount,
+  ROUND (
+    SUM(qty * price ) OVER (
+      PARTITION BY prod_id, txn_id
+    )
+  , 2) AS sale_pre_discount
+FROM balanced_tree.sales
+WHERE txn_id = '54f307'
+)
+SELECT 
+  *,
+  SUM(sale_discount) OVER() AS txn_total_discount_sum,
+  SUM(sale_pre_discount) OVER() AS txn_total_sum_no_discount
+FROM individual_txn_sale_details
+```
+|prod_id|txn_id|qty|price|discount|sale_discount|sale_pre_discount|txn_total_discount_sum|txn_total_sum_no_discount|
+|----|----|---|----|----|-----|-----|-----|-----|
+|2feb6b|54f307|2|29|17|48.14|58.00|280.54|338.00|
+|5d267b|54f307|4|40|17|132.80|160.00|280.54|338.00|
+|b9a74d|54f307|4|17|17|56.44|68.00|280.54|338.00|
+|c4a632|54f307|4|13|17|43.16|52.00|280.54|338.00|
 
 **5.** What is the percentage split of all transactions for members vs non-members?
 

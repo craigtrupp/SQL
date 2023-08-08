@@ -295,7 +295,78 @@ FROM unique_prod_per_txn;
 
 * If rounded to a **full** product would just be 6 here
 
+<br>
+
 **3.** What are the 25th, 50th and 75th percentile values for the revenue per transaction?
+
+* So just some first thoughts here. How is our pricing from sales against the product details.
+```sql
+-- Let's confirm that sales price and product_price is the same 
+SELECT
+  pd.product_id AS id, pd.product_name AS product,
+  pd.price AS product_price, sal.price AS sale_price,
+  COUNT(*) AS product_sale_prices_count
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sal
+  ON sal.prod_id = pd.product_id
+GROUP BY id, product, product_price, sale_price;
+```
+|id|product|product_price|sale_price|product_sale_prices_count|
+|---|----|----|-----|-----|
+|f084eb|Navy Solid Socks - Mens|36|36|1281|
+|e31d39|Cream Relaxed Jeans - Womens|10|10|1243|
+|b9a74d|White Striped Socks - Mens|17|17|1243|
+|5d267b|White Tee Shirt - Mens|40|40|1268|
+|2a2353|Blue Polo Shirt - Mens|57|57|1268|
+|9ec847|Grey Fashion Jacket - Womens|54|54|1275|
+|e83aa3|Black Straight Jeans - Womens|32|32|1246|
+|72f5d4|Indigo Rain Jacket - Womens|19|19|1250|
+|c8d436|Teal Button Up Shirt - Mens|10|10|1242|
+|d5e9a6|Khaki Suit Jacket - Womens|23|23|1247|
+|c4a632|Navy Oversized Jeans - Womens|13|13|1274|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|29|29|1258|
+
+* First observations is the product price and sale price is matched, a little uncertain how **profit** is measured but still getting familiar with the data set. Now since we're just looking for **revenue** we can get the total of each transaction prior to getting our `%` type figures for revenue
+
+* Also, `percentile_disc` and `percentile_cont` are discussed in the provided solution and I wanted to better understand the difference
+    - https://www.mssqltips.com/sqlservertutorial/9128/sql-server-statistical-window-functions-percentile-disc-and-percentile-cont/
+    - https://www.youtube.com/watch?v=4Gr93tPMXeo
+    - Later in this video is helpful how the `percentile_disc` interprets the set of pulling a **percentile** from commonly aggregated values (think like a department average for salary). 
+![sql_percentile_disc](images/percentilecont_percentiledisc_diff.png)
+    - Here we can see how the Finance department return a median of 4100 for `percentile_disc` which details the even set of values  picking the **lower** band of an even set of values when looking for the median
+
+* `Python` percentile for scores in a mocked test for reference on getting a percentile of a value in a set of ordered numbers
+```python
+# So here is a quick look at grabbing the percentile value that the person was in who scorred an 88 on the test 
+>>> scores
+[95, 93, 90, 89, 88, 87, 85, 83, 80, 78, 77, 76, 75, 70, 67]
+>>> scores_sorted
+[67, 70, 75, 76, 77, 78, 80, 83, 85, 87, 88, 89, 90, 93, 95]
+>>> percentile_88_score = len(scores_sorted[:scores_])
+KeyboardInterrupt
+>>> values_below_88 = scores_sorted[:scores_sorted.index(88)]
+>>> values_below_88
+[67, 70, 75, 76, 77, 78, 80, 83, 85, 87]
+>>> len(values_below_88)
+10
+>>> score_88_percentile = ROUND((len(values_below_88) / len(scores)) * 100, 2)
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+NameError: name 'ROUND' is not defined
+>>> score_88_percentile = (len(values_below_88) / len(scores)) * 100
+>>> score_88_percentile
+66.66666666666666
+>>> import math
+>>> math.round(score_88_percentile, 2)
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+AttributeError: module 'math' has no attribute 'round'
+>>> round(score_88_percentile, 2)
+66.67
+>>> f'{round(score_88_percentile, 2)}%'
+'66.67%'
+```
+![percentile_eq](images/percentile_eq.png)
 
 **4.** What is the average discount value per transaction?
 

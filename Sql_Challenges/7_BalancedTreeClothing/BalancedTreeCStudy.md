@@ -80,6 +80,108 @@ Each question can be answered using a single query - but as you are writing the 
 
 #### `A. High Level Sales Analysis`
 
-**1** What was the total quantity sold for all products?
-**2** What is the total generated revenue for all products before discounts?
-**3** What was the total discount amount for all products?
+**1.** What was the total quantity sold for all products?
+```sql
+SELECT
+  s.prod_id AS prod_id, pd.product_name,
+  SUM(s.qty) AS product_sales_counts
+FROM balanced_tree.sales AS s 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON s.prod_id = pd.product_id
+GROUP BY prod_id, product_name
+ORDER BY product_sales_counts DESC;
+```
+|prod_id|product_name|product_sales_counts|
+|-----|-----|-----|
+|9ec847|Grey Fashion Jacket - Womens|3876|
+|c4a632|Navy Oversized Jeans - Womens|3856|
+|2a2353|Blue Polo Shirt - Mens|3819|
+|5d267b|White Tee Shirt - Mens|3800|
+|f084eb|Navy Solid Socks - Mens|3792|
+|e83aa3|Black Straight Jeans - Womens|3786|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|3770|
+|72f5d4|Indigo Rain Jacket - Womens|3757|
+|d5e9a6|Khaki Suit Jacket - Womens|3752|
+|e31d39|Cream Relaxed Jeans - Womens|3707|
+|b9a74d|White Striped Socks - Mens|3655|
+|c8d436|Teal Button Up Shirt - Mens|3646|
+
+
+**2.** What is the total generated revenue for all products before discounts?
+* Recall that discount value is a **%** 
+```sql
+WITH product_counts AS (
+SELECT
+  s.prod_id AS prod_id, pd.product_name,
+  SUM(s.qty) AS product_sales_counts
+FROM balanced_tree.sales AS s 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON s.prod_id = pd.product_id
+GROUP BY prod_id, product_name
+ORDER BY product_sales_counts 
+)
+SELECT 
+  pc.prod_id, pc.product_name,
+  ROUND(pc.product_sales_counts * pp.price, 2) AS product_rev_pre_disc,
+  CONCAT('$', ROUND(pc.product_sales_counts * pp.price, 2)) as product_rev_pre_disc_str,
+  -- Window SUM for the total product sales (as requested by the prompt) 
+  CONCAT('$', SUM(pc.product_sales_counts * pp.price) OVER()) AS total_product_rev_pre_disc
+FROM product_counts AS pc 
+INNER JOIN balanced_tree.product_prices AS pp 
+  ON pc.prod_id = pp.product_id
+ORDER BY product_rev_pre_disc DESC;
+```
+|prod_id|product_name|product_rev_pre_disc|product_rev_pre_disc_str|total_product_rev_pre_disc|
+|----|----|-----|-----|------|
+|2a2353|Blue Polo Shirt - Mens|217683.00|$217683.00|$1289453|
+|9ec847|Grey Fashion Jacket - Womens|209304.00|$209304.00|$1289453|
+|5d267b|White Tee Shirt - Mens|152000.00|$152000.00|$1289453|
+|f084eb|Navy Solid Socks - Mens|136512.00|$136512.00|$1289453|
+|e83aa3|Black Straight Jeans - Womens|121152.00|$121152.00|$1289453|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|109330.00|$109330.00|$1289453|
+|d5e9a6|Khaki Suit Jacket - Womens|86296.00|$86296.00|$1289453|
+|72f5d4|Indigo Rain Jacket - Womens|71383.00|$71383.00|$1289453|
+|b9a74d|White Striped Socks - Mens|62135.00|$62135.00|$1289453|
+|c4a632|Navy Oversized Jeans - Womens|50128.00|$50128.00|$1289453|
+|e31d39|Cream Relaxed Jeans - Womens|37070.00|$37070.00|$1289453|
+|c8d436|Teal Button Up Shirt - Mens|36460.00|$36460.00|$1289453|
+
+* Now we can do a better just `CAST`'ing as a **Money** type 
+```sql
+WITH product_counts AS (
+SELECT
+  s.prod_id AS prod_id, pd.product_name,
+  SUM(s.qty) AS product_sales_counts
+FROM balanced_tree.sales AS s 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON s.prod_id = pd.product_id
+GROUP BY prod_id, product_name
+ORDER BY product_sales_counts 
+)
+SELECT 
+  pc.prod_id, pc.product_name,
+  ROUND(pc.product_sales_counts * pp.price, 2) AS product_rev_pre_disc,
+  CAST(ROUND(pc.product_sales_counts * pp.price, 2) AS money) as product_rev_pre_disc_str,
+  -- Window SUM for the total product sales (as requested by the prompt )
+  CAST(SUM(pc.product_sales_counts * pp.price) OVER() AS money) AS total_product_rev_pre_disc
+FROM product_counts AS pc 
+INNER JOIN balanced_tree.product_prices AS pp 
+  ON pc.prod_id = pp.product_id
+ORDER BY product_rev_pre_disc DESC;
+```
+|prod_id|product_name|product_rev_pre_disc|product_rev_pre_disc_str|total_product_rev_pre_disc|
+|----|-----|-----|------|------|
+|2a2353|Blue Polo Shirt - Mens|217683.00|$217,683.00|$1,289,453.00|
+|9ec847|Grey Fashion Jacket - Womens|209304.00|$209,304.00|$1,289,453.00|
+|5d267b|White Tee Shirt - Mens|152000.00|$152,000.00|$1,289,453.00|
+|f084eb|Navy Solid Socks - Mens|136512.00|$136,512.00|$1,289,453.00|
+|e83aa3|Black Straight Jeans - Womens|121152.00|$121,152.00|$1,289,453.00|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|109330.00|$109,330.00|$1,289,453.00|
+|d5e9a6|Khaki Suit Jacket - Womens|86296.00|$86,296.00|$1,289,453.00|
+|72f5d4|Indigo Rain Jacket - Womens|71383.00|$71,383.00|$1,289,453.00|
+|b9a74d|White Striped Socks - Mens|62135.00|$62,135.00|$1,289,453.00|
+|c4a632|Navy Oversized Jeans - Womens|50128.00|$50,128.00|$1,289,453.00|
+|e31d39|Cream Relaxed Jeans - Womens|37070.00|$37,070.00|$1,289,453.00|
+|c8d436|Teal Button Up Shirt - Mens|36460.00|$36,460.00|$1,289,453.00|
+
+**3.** What was the total discount amount for all products?

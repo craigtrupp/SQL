@@ -106,6 +106,7 @@ ORDER BY product_sales_counts DESC;
 |b9a74d|White Striped Socks - Mens|3655|
 |c8d436|Teal Button Up Shirt - Mens|3646|
 
+<br>
 
 **2.** What is the total generated revenue for all products before discounts?
 * Recall that discount value is a **%** 
@@ -184,4 +185,47 @@ ORDER BY product_rev_pre_disc DESC;
 |e31d39|Cream Relaxed Jeans - Womens|37070.00|$37,070.00|$1,289,453.00|
 |c8d436|Teal Button Up Shirt - Mens|36460.00|$36,460.00|$1,289,453.00|
 
+```sql
+-- lol, this also works
+SELECT
+  -- Will multiply each row and simply take the sum of all rows quanity * price at the end
+  SUM(qty * price) AS total_revenue,
+  CAST(SUM(qty * price) AS money) AS str_total_revenue
+FROM balanced_tree.sales;
+```
+|total_revenue|str_total_revenue|
+|----|---|
+|1289453|$1,289,453.00|
+
+<br>
+
 **3.** What was the total discount amount for all products?
+* Let's look at a row first for the price post discount against w/o discount
+```sql
+SELECT 
+  qty, price, discount,
+  -- qty * (price - (price * (discount/100)))
+  price - (price * (ROUND(discount::NUMERIC/100, 2))) AS indiviual_price_w_disc,
+  -- explicit here about which operations to do first
+  qty * (price - (price * (ROUND(discount::NUMERIC/100, 2)))) AS total_after_disc,
+  qty * price AS total_pre_disc
+FROM balanced_tree.sales
+LIMIT 1;
+```
+|qty|price|discount|indiviual_price_w_disc|total_after_disc|total_pre_disc|
+|---|----|----|-----|----|-----|
+|4|13|17|10.79|43.16|52|
+
+```sql
+SELECT
+  -- subtract base price by the discounted price of a product rounded to two decimals
+  SUM(qty * ROUND(price - (price * discount/100::NUMERIC), 2)) AS total_amount_post_discount,
+  CAST(SUM(qty * ROUND(price - (price * discount/100::NUMERIC), 2)) AS money) AS total_post_discount_$,
+  -- and now we will simply take the total pre-discount and minus total-after discount for eact sale
+  SUM(qty * price) - SUM(qty * ROUND(price - (price * discount/100::NUMERIC), 2)) AS total_discount_amount,
+  CAST(SUM(qty * price) - SUM(qty * ROUND(price - (price * discount/100::NUMERIC), 2)) AS money) AS discount_amount_$
+FROM balanced_tree.sales;
+```
+|total_amount_post_discount|total_post_discount_$|total_discount_amount|discount_amount_$|
+|-----|-----|------|-----|
+|1133223.86|$1,133,223.86|156229.14|$156,229.14|

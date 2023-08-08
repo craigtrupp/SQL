@@ -59,3 +59,13 @@ SELECT
 FROM balanced_tree.sales;
 
 -- 2
+WITH unique_prod_per_txn AS (
+SELECT
+  txn_id,
+  COUNT(DISTINCT prod_id) AS unique_prod_count_per_txn
+FROM balanced_tree.sales
+GROUP BY txn_id
+)
+SELECT 
+  ROUND(AVG(unique_prod_count_per_txn), 2) AS avg_unq_prod_per_txn
+FROM unique_prod_per_txn;

@@ -283,7 +283,6 @@ SELECT
   txn_id,
   COUNT(DISTINCT prod_id) AS unique_prod_count_per_txn
 FROM balanced_tree.sales
-
 GROUP BY txn_id
 )
 SELECT 

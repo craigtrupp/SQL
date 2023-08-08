@@ -124,3 +124,27 @@ SELECT
   SUM(sale_discount) OVER() AS txn_total_discount_sum,
   SUM(sale_pre_discount) OVER() AS txn_total_sum_no_discount
 FROM individual_txn_sale_details
+
+
+-- Final Query (See Markdown for details on progression)
+WITH txn_total AS (
+SELECT
+  txn_id,
+  -- Sum of Each sale in all sales for a transaction w a discount applied to the price and qty for each sale in an order 
+  -- Recall discount applied as discount (which is integer) / 100 * price, then the price minus that to subtract discount amount from price before multiply by the quantity purchased 
+  ROUND(SUM(qty * (price - ( price * (discount/100::NUMERIC) ) ) ), 2) AS txn_total_w_discount,
+  -- Sum of Each sale in all sales for a transaction w/o a discount applied to the price and qty for each sale in an order
+  SUM(qty * price) AS txn_total_wo_discount
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+txn_disc_differences AS (
+SELECT
+  *,
+  txn_total_wo_discount - txn_total_w_discount AS txn_discount_savings
+FROM txn_total
+)
+SELECT 
+  ROUND(AVG(txn_discount_savings), 2) AS avg_disc_per_txn,
+  CAST(ROUND(AVG(txn_discount_savings), 2) AS MONEY) AS avg_disc_per_txn_string
+FROM txn_disc_differences;

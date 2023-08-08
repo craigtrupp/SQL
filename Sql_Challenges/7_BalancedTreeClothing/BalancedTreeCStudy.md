@@ -426,6 +426,7 @@ GROUP BY txn_id
     - Let's dig a bit deeper and use a `WINDOW FUNCTION` to look at an individual transaction sale discount applied at each level and validate the sum values from above on the entire total 
 
 ```sql
+-- Just for fun can we do an example order for the discount applied at each sale in a transaction???
 WITH individual_txn_sale_details AS (
 SELECT
   prod_id, txn_id, qty, price, discount,
@@ -456,6 +457,60 @@ FROM individual_txn_sale_details
 |5d267b|54f307|4|40|17|132.80|160.00|280.54|338.00|
 |b9a74d|54f307|4|17|17|56.44|68.00|280.54|338.00|
 |c4a632|54f307|4|13|17|43.16|52.00|280.54|338.00|
+
+- And ... back to the original question
+```sql
+-- Recall each SUM value in CTE below is performing the operation on each sale line before aggregating by the transaction
+WITH txn_total AS (
+SELECT
+  txn_id,
+  -- Sum of Each sale in all sales for a transaction w a discount applied to the price and qty for each sale in an order 
+  -- Recall discount applied as discount (which is integer) / 100 * price, then the price minus that to subtract discount amount from price before multiply by the quantity purchased 
+  ROUND(SUM(qty * (price - ( price * (discount/100::NUMERIC) ) ) ), 2) AS txn_total_w_discount,
+  -- Sum of Each sale in all sales for a transaction w/o a discount applied to the price and qty for each sale in an order
+  SUM(qty * price) AS txn_total_wo_discount
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+txn_disc_differences AS (
+SELECT
+  *,
+  txn_total_wo_discount - txn_total_w_discount AS txn_discount_savings
+FROM txn_total
+)
+SELECT * FROM txn_disc_differences WHERE txn_id = '54f307';
+```
+|txn_id|txn_total_w_discount|txn_total_wo_discount|txn_discount_savings|
+|-----|-----|-----|-----|
+|54f307|280.54|338|57.46|
+
+* Looking good for one transaction getting the difference, now to all of them
+```sql
+WITH txn_total AS (
+SELECT
+  txn_id,
+  -- Sum of Each sale in all sales for a transaction w a discount applied to the price and qty for each sale in an order 
+  -- Recall discount applied as discount (which is integer) / 100 * price, then the price minus that to subtract discount amount from price before multiply by the quantity purchased 
+  ROUND(SUM(qty * (price - ( price * (discount/100::NUMERIC) ) ) ), 2) AS txn_total_w_discount,
+  -- Sum of Each sale in all sales for a transaction w/o a discount applied to the price and qty for each sale in an order
+  SUM(qty * price) AS txn_total_wo_discount
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+txn_disc_differences AS (
+SELECT
+  *,
+  txn_total_wo_discount - txn_total_w_discount AS txn_discount_savings
+FROM txn_total
+)
+SELECT 
+  ROUND(AVG(txn_discount_savings), 2) AS avg_disc_per_txn,
+  CAST(ROUND(AVG(txn_discount_savings), 2) AS MONEY) AS avg_disc_per_txn_string
+FROM txn_disc_differences;
+```
+|avg_disc_per_txn|avg_disc_per_txn_string|
+|-----|-----|
+|62.49|$62.49|
 
 **5.** What is the percentage split of all transactions for members vs non-members?
 

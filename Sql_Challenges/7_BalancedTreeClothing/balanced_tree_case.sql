@@ -47,3 +47,15 @@ SELECT
   SUM(qty * price) - SUM(qty * ROUND(price - (price * discount/100::NUMERIC), 2)) AS total_discount_amount,
   CAST(SUM(qty * price) - SUM(qty * ROUND(price - (price * discount/100::NUMERIC), 2)) AS money) AS discount_amount_$
 FROM balanced_tree.sales;
+
+
+
+
+
+-- `B. Transaction Analysis`
+-- 1
+SELECT
+  COUNT(DISTINCT txn_id) AS unique_transactions
+FROM balanced_tree.sales;
+
+-- 2

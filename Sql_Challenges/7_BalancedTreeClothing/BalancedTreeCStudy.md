@@ -229,3 +229,77 @@ FROM balanced_tree.sales;
 |total_amount_post_discount|total_post_discount_$|total_discount_amount|discount_amount_$|
 |-----|-----|------|-----|
 |1133223.86|$1,133,223.86|156229.14|$156,229.14|
+
+<br><br>
+
+#### `B. Transaction Analysis`
+**1.** How many unique transactions were there?
+```sql
+SELECT
+  COUNT(DISTINCT txn_id) AS unique_transactions
+FROM balanced_tree.sales;
+```
+|unique_transactions|
+|-----|
+|2500|
+
+<br>
+
+**2.** What is the average unique products purchased in each transaction?
+* Let's look at two first here just to see how sales data looks per record in relation to an overall transaction
+```sql
+SELECT * FROM balanced_tree.sales WHERE txn_id IN ('54f307', '26cc98') LIMIT 10;
+```
+|prod_id|qty|price|discount|member|txn_id|start_txn_time|
+|----|----|-----|----|----|----|----|
+|c4a632|4|13|17|true|54f307|2021-02-13 01:59:43.296|
+|5d267b|4|40|17|true|54f307|2021-02-13 01:59:43.296|
+|b9a74d|4|17|17|true|54f307|2021-02-13 01:59:43.296|
+|2feb6b|2|29|17|true|54f307|2021-02-13 01:59:43.296|
+|c4a632|5|13|21|true|26cc98|2021-01-19 01:39:00.346|
+|e31d39|2|10|21|true|26cc98|2021-01-19 01:39:00.346|
+|72f5d4|3|19|21|true|26cc98|2021-01-19 01:39:00.346|
+|2a2353|3|57|21|true|26cc98|2021-01-19 01:39:00.346|
+|f084eb|3|36|21|true|26cc98|2021-01-19 01:39:00.346|
+
+* So her we can see for two transaction ids over 9 rows is each product is given its own line in the sales table so we can look to group by the unique prod_id per `txn_id`
+
+```sql
+SELECT
+  txn_id,
+  COUNT(DISTINCT prod_id) AS unique_prod_count_per_txn
+FROM balanced_tree.sales
+WHERE txn_id IN ('54f307', '26cc98')
+GROUP BY txn_id
+```
+|txn_id|unique_prod_count_per_txn|
+|----|----|
+|26cc98|5|
+|54f307|4|
+
+```sql
+WITH unique_prod_per_txn AS (
+SELECT
+  txn_id,
+  COUNT(DISTINCT prod_id) AS unique_prod_count_per_txn
+FROM balanced_tree.sales
+
+GROUP BY txn_id
+)
+SELECT 
+  ROUND(AVG(unique_prod_count_per_txn), 2) AS avg_unq_prod_per_txn
+FROM unique_prod_per_txn;
+```
+|avg_unq_prod_per_txn|
+|-----|
+|6.04|
+
+* If rounded to a **full** product would just be 6 here
+
+**3.** What are the 25th, 50th and 75th percentile values for the revenue per transaction?
+
+**4.** What is the average discount value per transaction?
+
+**5.** What is the percentage split of all transactions for members vs non-members?
+
+**6.** What is the average revenue for member transactions and non-member transactions?

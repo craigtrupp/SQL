@@ -366,6 +366,10 @@ AttributeError: module 'math' has no attribute 'round'
 66.67
 >>> f'{round(score_88_percentile, 2)}%'
 '66.67%'
+>>> scores_sorted
+[67, 70, 75, 76, 77, 78, 80, 83, 85, 87, 88, 89, 90, 93, 95]
+>>> np.percentile(scores,25)
+76.5
 ```
 ![percentile_eq](images/percentile_eq.png)
 

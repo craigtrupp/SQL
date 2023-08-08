@@ -69,3 +69,19 @@ GROUP BY txn_id
 SELECT 
   ROUND(AVG(unique_prod_count_per_txn), 2) AS avg_unq_prod_per_txn
 FROM unique_prod_per_txn;
+
+-- 3
+WITH transaction_avgs AS (
+SELECT
+  txn_id,
+  ROUND(SUM(qty * price), 2) AS txn_avg
+FROM balanced_tree.sales
+GROUP BY txn_id
+)
+SELECT
+  CAST(PERCENTILE_CONT(.25) WITHIN GROUP(ORDER BY txn_avg)::NUMERIC AS MONEY) AS twenty_fifth_percentile,
+  CAST(PERCENTILE_CONT(.5) WITHIN GROUP(ORDER BY txn_avg)::NUMERIC AS MONEY) AS fiftieth_percentile,
+  CAST(ROUND(AVG(txn_avg), 2) AS MONEY) AS mean_txn_avg,
+  -- cannot cast type double precision to money if not converting the percentile return to numeric
+  CAST(PERCENTILE_CONT(.75) WITHIN GROUP(ORDER BY txn_avg)::NUMERIC AS MONEY) AS seventh_fifth_percentile
+FROM transaction_avgs;

@@ -49,7 +49,7 @@ SELECT
 FROM balanced_tree.sales;
 
 
-
+------------------------- END OF SECTION A -------------------------
 
 
 -- `B. Transaction Analysis`
@@ -221,3 +221,23 @@ SELECT
   'Non Member Avg' AS member_type,
   CAST(ROUND(na_mmbr_sale_total/na_mmbr_txn_count::NUMERIC, 2) AS MONEY) AS txn_avg
 FROM mbr_sales_txn_total
+
+
+-- Another Approach to Question 6 for Section B
+WITH cte_member_revenue AS (
+  SELECT
+    member,
+    txn_id,
+    SUM(price * qty) AS revenue
+  FROM balanced_tree.sales
+  GROUP BY member, txn_id
+)
+SELECT
+  member,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY revenue) AS median_avg_rev,
+  CAST(AVG(revenue) AS MONEY) AS mean_avg_rev
+FROM cte_member_revenue
+GROUP BY member;
+
+
+------------------------- END OF SECTION B -------------------------

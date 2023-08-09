@@ -232,7 +232,7 @@ FROM balanced_tree.sales;
 
 <br><br>
 
-#### `B. Transaction Analysis`
+### `B. Transaction Analysis`
 **1.** How many unique transactions were there?
 ```sql
 SELECT
@@ -792,3 +792,51 @@ FROM mbr_sales_txn_total
 |----|----|
 |Member Avg|$516.27|
 |Non Member Avg|$515.04|
+
+<br>
+
+#### `Another Simpler Path`
+* Above was fun because it's good to practice these techniques, however, here's a simpler path as well for reference
+* First Step (Notice Output leads to similar agg value for the txn and member flag to yours??!)
+```sql
+  SELECT
+    member,
+    txn_id,
+    SUM(price * qty) AS revenue
+  FROM balanced_tree.sales
+  GROUP BY member, txn_id
+```
+|member|txn_id|revenue|
+|---|----|----|
+|true|fc7210|224|
+|false|a58b8a|488|
+|true|bf755f|451|
+|true|c2f82c|295|
+|false|393360|250|
+
+* Final Query
+```sql
+WITH cte_member_revenue AS (
+  SELECT
+    member,
+    txn_id,
+    SUM(price * qty) AS revenue
+  FROM balanced_tree.sales
+  GROUP BY member, txn_id
+)
+SELECT
+  member,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY revenue) AS median_avg_rev,
+  CAST(AVG(revenue) AS MONEY) AS mean_avg_rev
+FROM cte_member_revenue
+GROUP BY member;
+```
+|member|median_avg_rev|mean_avg_rev|
+|----|-----|---|
+|false|508|$515.04|
+|true|511|$516.27|
+
+
+<br><br>
+
+### `C. Product Analysis`

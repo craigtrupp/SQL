@@ -656,3 +656,24 @@ FROM agg_txn_member_counts;
 <br>
 
 **6.** What is the average revenue for member transactions and non-member transactions?
+```sql
+-- This would've been easier for the last query lol
+SELECT
+  txn_id,
+  -- get unique member value for each transaction
+  array_agg(DISTINCT member) AS txn_member_flag
+FROM balanced_tree.sales
+GROUP BY txn_id
+-- Let's see if a check here for ordering by the length of the aggregated distinct member for transaction is allowed
+ORDER BY CARDINALITY(array_agg(DISTINCT member)) DESC
+LIMIT 5;
+```
+|txn_id|txn_member_flag|
+|-----|-----|
+|000027|[ false ]|
+|000106|[ true ]|
+|000dd8|[ false ]|
+|003920|[ true ]|
+|003c6d|[ true ]|
+
+* For future reference **CHECK** out the `ORDER BY` in the above query how we are using the length of unique distinct member values per transaction (**aka : value of the array_agg call**) to get one solitary value for if a transaction was a member or not!

@@ -677,3 +677,118 @@ LIMIT 5;
 |003c6d|[ true ]|
 
 * For future reference **CHECK** out the `ORDER BY` in the above query how we are using the length of unique distinct member values per transaction (**aka : value of the array_agg call**) to get one solitary value for if a transaction was a member or not!
+
+```sql
+WITH txn_distinct_mmb_status AS (
+SELECT
+  txn_id,
+  -- get unique member value for each transaction
+  array_agg(DISTINCT member) AS txn_member_flag
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+-- 
+txn_total_join AS (
+SELECT
+  cte_txn_flg.txn_id AS id,
+  cte_txn_flg.txn_member_flag[1] AS txn_flag,
+  SUM(sales.qty * sales.price) AS txn_total
+FROM txn_distinct_mmb_status AS cte_txn_flg
+INNER JOIN balanced_tree.sales AS sales 
+  ON cte_txn_flg.txn_id = sales.txn_id
+GROUP BY id, txn_flag
+)
+SELECT 
+  * 
+FROM txn_total_join
+LIMIT 5;
+```
+* With this CTE path we can now see how we have each unique transaction id and their total revenue pre_discount along with if the flag was a member or non member purchase
+
+|id|txn_flag|txn_total|
+|----|-----|----|
+|2ebc85|true|638|
+|10a814|true|159|
+|5d9add|false|780|
+|09c243|true|509|
+|12a9bf|true|353|
+
+```sql
+WITH txn_distinct_mmb_status AS (
+SELECT
+  txn_id,
+  -- get unique member value for each transaction
+  array_agg(DISTINCT member) AS txn_member_flag
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+-- 
+txn_total_join AS (
+SELECT
+  cte_txn_flg.txn_id AS id,
+  cte_txn_flg.txn_member_flag[1] AS txn_flag,
+  SUM(sales.qty * sales.price) AS txn_total
+FROM txn_distinct_mmb_status AS cte_txn_flg
+INNER JOIN balanced_tree.sales AS sales 
+  ON cte_txn_flg.txn_id = sales.txn_id
+GROUP BY id, txn_flag
+)
+-- now let's get a print out for the total sum of member transactions and aggregate the total transactions (similar to the last exercise)
+-- price is a INT type AND not a decimal so only need to round in the next step when computing average
+SELECT 
+  SUM(CASE WHEN txn_flag IS TRUE THEN 1 ELSE 0 END) AS mmbr_txn_count,
+  SUM(CASE WHEN txn_flag IS TRUE THEN txn_total ELSE 0 END) mmbr_sale_total,
+  SUM(CASE WHEN txn_flag IS NOT TRUE THEN 1 ELSE 0 END) AS na_mmbr_txn_count,
+  SUM(CASE WHEN txn_flag IS NOT TRUE THEN txn_total ELSE 0 END) na_mmbr_sale_total
+FROM txn_total_join;
+```
+|mmbr_txn_count|mmbr_sale_total|na_mmbr_txn_count|na_mmbr_sale_total|
+|-----|-----|-----|-----|
+|1505|776984|995|512469|
+
+* **Finally to the averages!**
+```sql
+WITH txn_distinct_mmb_status AS (
+SELECT
+  txn_id,
+  -- get unique member value for each transaction
+  array_agg(DISTINCT member) AS txn_member_flag
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+-- 
+txn_total_join AS (
+SELECT
+  cte_txn_flg.txn_id AS id,
+  cte_txn_flg.txn_member_flag[1] AS txn_flag,
+  SUM(sales.qty * sales.price) AS txn_total
+FROM txn_distinct_mmb_status AS cte_txn_flg
+INNER JOIN balanced_tree.sales AS sales 
+  ON cte_txn_flg.txn_id = sales.txn_id
+GROUP BY id, txn_flag
+),
+-- now let's get a print out for the total sum of member transactions and aggregate the total transactions (similar to the last exercise)
+-- price is a INT type AND not a decimal so only need to round in the next step when computing average
+mbr_sales_txn_total AS (
+SELECT 
+  SUM(CASE WHEN txn_flag IS TRUE THEN 1 ELSE 0 END) AS mmbr_txn_count,
+  SUM(CASE WHEN txn_flag IS TRUE THEN txn_total ELSE 0 END) mmbr_sale_total,
+  SUM(CASE WHEN txn_flag IS NOT TRUE THEN 1 ELSE 0 END) AS na_mmbr_txn_count,
+  SUM(CASE WHEN txn_flag IS NOT TRUE THEN txn_total ELSE 0 END) na_mmbr_sale_total
+FROM txn_total_join
+)
+-- Let's try a UNION for a multiple row output
+SELECT 
+  'Member Avg' AS member_type,
+  CAST(ROUND(mmbr_sale_total/mmbr_txn_count::NUMERIC, 2) AS MONEY) AS txn_avg
+FROM mbr_sales_txn_total
+UNION 
+SELECT 
+  'Non Member Avg' AS member_type,
+  CAST(ROUND(na_mmbr_sale_total/na_mmbr_txn_count::NUMERIC, 2) AS MONEY) AS txn_avg
+FROM mbr_sales_txn_total
+```
+|member_type|txn_avg|
+|----|----|
+|Member Avg|$516.27|
+|Non Member Avg|$515.04|

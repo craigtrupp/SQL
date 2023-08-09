@@ -148,3 +148,32 @@ SELECT
   ROUND(AVG(txn_discount_savings), 2) AS avg_disc_per_txn,
   CAST(ROUND(AVG(txn_discount_savings), 2) AS MONEY) AS avg_disc_per_txn_string
 FROM txn_disc_differences;
+
+
+-- 5 (Member Percentage Split Final Query -- See Markdown for further notes)
+WITH txn_indv_sale_member_counts AS (
+SELECT
+  array_agg(member) AS member_txn_values,
+  -- can check cardinality but just also eyeball here that these are the same (length wise so each txn has same member boolean status)
+  SUM(CASE WHEN member IS TRUE THEN 1 ELSE 0 END) AS member_sale_rows_per_txn,
+  SUM(CASE WHEN member IS NOT TRUE THEN 1 ELSE 0 END) AS non_member_sale_rows_per_txn
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+-- Now we can just target two scenarios here to get a total txn_value of 1 or 0 for the member status 
+-- (cardinality checks length of array_agg against count of member rows value per grouped txn)
+agg_txn_member_counts AS (
+SELECT
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = member_sale_rows_per_txn THEN 1 ELSE 0 END) AS member_txn_total_events,
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = non_member_sale_rows_per_txn THEN 1 ELSE 0 END) AS non_member_txn_total_events
+FROM txn_indv_sale_member_counts
+)
+-- percentage split
+SELECT
+  *,
+  -- don't forget wonky floor division (will round to two decimal places)
+  ROUND(100 * (member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2) AS member_percentage,
+  CONCAT(ROUND(100 * (member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2), '%') AS member_perc_str,
+  ROUND(100 * (non_member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2) AS non_member_percentage,
+  CONCAT(ROUND(100 * (non_member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2), '%') AS non_member_perc_str
+FROM agg_txn_member_counts;

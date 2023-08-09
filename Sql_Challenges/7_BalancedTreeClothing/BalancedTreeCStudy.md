@@ -512,6 +512,147 @@ FROM txn_disc_differences;
 |-----|-----|
 |62.49|$62.49|
 
+<br>
+
 **5.** What is the percentage split of all transactions for members vs non-members?
+```sql
+-- What type is member (looks like a boolean but let's check)
+SELECT
+  table_catalog, table_schema, table_name, column_name, data_type
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE table_name = 'sales'
+AND table_schema = 'balanced_tree';
+```
+|table_catalog|table_schema|table_name|column_name|data_type|
+|----|-----|-----|-----|----|
+|postgres|balanced_tree|sales|prod_id|character varying|
+|postgres|balanced_tree|sales|qty|integer|
+|postgres|balanced_tree|sales|price|integer|
+|postgres|balanced_tree|sales|discount|integer|
+|postgres|balanced_tree|sales|member|boolean|
+|postgres|balanced_tree|sales|txn_id|character varying|
+|postgres|balanced_tree|sales|start_txn_time|timestamp without time zone|
+
+* We can see that the member check is a boolean here and not a str - varchar type
+
+```sql
+-- Quick validation that every transaction only has one distinct member value
+SELECT
+  txn_id,
+  COUNT(DISTINCT member) AS txn_member_unique_count
+FROM balanced_tree.sales
+GROUP BY txn_id
+ORDER BY txn_member_unique_count DESC
+LIMIT 5;
+-- No result greather than 1
+
+-- Let's get a respone value here for future reference
+SELECT
+  array_agg(member) AS member_txn_values,
+  -- can check cardinality but just also eyeball here that these are the same (length wise so each txn has same member boolean status)
+  SUM(CASE WHEN member IS TRUE THEN 1 ELSE 0 END) AS member_sale_rows_per_txn,
+  SUM(CASE WHEN member IS NOT TRUE THEN 1 ELSE 0 END) AS non_member_sale_rows_per_txn
+FROM balanced_tree.sales
+WHERE txn_id = '000027'
+GROUP BY txn_id
+```
+|member_txn_values|member_sale_rows_per_txn|non_member_sale_rows_per_txn|
+|-----|-----|-----|
+|[ false, false, false, false, false, false, false ]|0|7|
+
+* As we se here this is a sample transaction and how each sale within_txn provides a member status
+    - The first query confirmed that no transaction has any more distinct member value (boolean check) greater than 1 meaning that all transactions when grouped by for each sale in the whole transaction only had 1 member value! Which is good and in theory duh ... but not always how it works
+
+```sql
+WITH txn_indv_sale_member_counts AS (
+SELECT
+  array_agg(member) AS member_txn_values,
+  -- can check cardinality but just also eyeball here that these are the same (length wise so each txn has same member boolean status)
+  SUM(CASE WHEN member IS TRUE THEN 1 ELSE 0 END) AS member_sale_rows_per_txn,
+  SUM(CASE WHEN member IS NOT TRUE THEN 1 ELSE 0 END) AS non_member_sale_rows_per_txn
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+-- Now we can just target two scenarios here to get a total txn_value of 1 or 0 for the member status
+agg_txn_member_counts AS (
+SELECT
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = member_sale_rows_per_txn THEN 1 ELSE 0 END) AS member_txn_total_events,
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = non_member_sale_rows_per_txn THEN 1 ELSE 0 END) AS non_member_txn_total_events
+FROM txn_indv_sale_member_counts
+)
+SELECT * FROM agg_txn_member_counts;
+```
+|member_txn_total_events|non_member_txn_total_events|
+|-----|-----|
+|1505|995|
+
+```sql
+WITH txn_indv_sale_member_counts AS (
+SELECT
+  array_agg(member) AS member_txn_values,
+  -- can check cardinality but just also eyeball here that these are the same (length wise so each txn has same member boolean status)
+  SUM(CASE WHEN member IS TRUE THEN 1 ELSE 0 END) AS member_sale_rows_per_txn,
+  SUM(CASE WHEN member IS NOT TRUE THEN 1 ELSE 0 END) AS non_member_sale_rows_per_txn
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+-- Now we can just target two scenarios here to get a total txn_value of 1 or 0 for the member status
+agg_txn_member_counts AS (
+SELECT
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = member_sale_rows_per_txn THEN 1 ELSE 0 END) AS member_txn_total_events,
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = non_member_sale_rows_per_txn THEN 1 ELSE 0 END) AS non_member_txn_total_events
+FROM txn_indv_sale_member_counts
+)
+-- Union check for all distinct transaction  ... cause why not
+SELECT 
+  member_txn_total_events + non_member_txn_total_events AS txn_count
+FROM agg_txn_member_counts
+UNION ALL 
+SELECT 
+  COUNT(DISTINCT txn_id) AS txn_count
+FROM balanced_tree.sales
+```
+|txn_count|
+|----|
+|2500|
+|2500|
+
+*   **Now to the Percentages!!**
+```sql
+-- Now to the solution 
+WITH txn_indv_sale_member_counts AS (
+SELECT
+  array_agg(member) AS member_txn_values,
+  -- can check cardinality but just also eyeball here that these are the same (length wise so each txn has same member boolean status)
+  SUM(CASE WHEN member IS TRUE THEN 1 ELSE 0 END) AS member_sale_rows_per_txn,
+  SUM(CASE WHEN member IS NOT TRUE THEN 1 ELSE 0 END) AS non_member_sale_rows_per_txn
+FROM balanced_tree.sales
+GROUP BY txn_id
+),
+-- Now we can just target two scenarios here to get a total txn_value of 1 or 0 for the member status 
+-- (cardinality checks length of array_agg against count of member rows value per grouped txn)
+agg_txn_member_counts AS (
+SELECT
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = member_sale_rows_per_txn THEN 1 ELSE 0 END) AS member_txn_total_events,
+  SUM(CASE WHEN CARDINALITY(member_txn_values) = non_member_sale_rows_per_txn THEN 1 ELSE 0 END) AS non_member_txn_total_events
+FROM txn_indv_sale_member_counts
+)
+-- percentage split
+SELECT
+  *,
+  -- don't forget wonky floor division (will round to two decimal places)
+  ROUND(100 * (member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2) AS member_percentage,
+  CONCAT(ROUND(100 * (member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2), '%') AS member_perc_str,
+  ROUND(100 * (non_member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2) AS non_member_percentage,
+  CONCAT(ROUND(100 * (non_member_txn_total_events / (member_txn_total_events + non_member_txn_total_events)::NUMERIC), 2), '%') AS non_member_perc_str
+FROM agg_txn_member_counts;
+```
+- Truncating the column names  
+
+|member_txn_tevts|non_member_txn_tevts|member_per|member_str|non_member_per|non_member_str|
+|----|----|-----|-----|----|----|
+|1505|995|60.20|60.20%|39.80|39.80%|
+
+<br>
 
 **6.** What is the average revenue for member transactions and non-member transactions?

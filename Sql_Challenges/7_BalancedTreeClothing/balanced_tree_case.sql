@@ -307,3 +307,54 @@ SELECT
 FROM ranked_segment_product_counts
 WHERE segment_rank = 1
 ORDER BY prod_seg_total DESC;
+
+
+
+-- 4 What is the total quantity, revenue and discount for each category?
+-- Quite Similar to #2 for this particular section but only categories are male/female
+SELECT 
+  pd.category_id as cat_id, pd.category_name AS cat_name,
+  SUM(sl.qty) AS cat_total_qty, 
+  SUM(sl.price * sl.qty) AS cat_no_disc_rev,
+  CAST(SUM(sl.price * sl.qty) AS MONEY) AS cat_no_disc_rev_str,
+  -- Explicit state for order of operations for revenue segment sale after discount applied recall discount needs to be turned to a decimal
+  -- Recall here we are multiply the qty times the price after accounting for discount
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) AS cat_rev_w_disc,
+  CAST( 
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) 
+  AS MONEY)AS cat_rev_w_disc_str,
+  -- Now we just want the discount amount for each segment so essientially the discount per purchased qty
+  ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2)AS cat_disc_total,
+  CAST(ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2) AS MONEY)AS cat_disc_total_str
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON sl.prod_id = pd.product_id
+GROUP BY cat_id, cat_name
+
+
+-- 5. What is the top selling product for each category?
+WITH products_per_cat AS (
+SELECT
+  pd.product_id, pd.product_name, pd.category_name,
+  SUM(sl.qty) AS prod_cat_total_qty,
+  RANK() OVER (
+    PARTITION BY pd.category_name
+    ORDER BY SUM(sl.qty) DESC
+  ) AS category_qty_rank
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_id, pd.product_name, pd.category_name
+ORDER BY pd.category_name, category_qty_rank
+)
+SELECT * FROM products_per_cat WHERE category_qty_rank = 1;

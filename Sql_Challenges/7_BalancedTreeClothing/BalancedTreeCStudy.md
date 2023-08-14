@@ -1022,3 +1022,113 @@ ORDER BY prod_seg_total DESC;
 |f084eb|Navy Solid Socks - Mens|6|Socks|3792|1|
 
 <br>
+
+**4.** What is the total quantity, revenue and discount for each category?
+- Now Based on #2, we simply need to change some stuff out here for a similar type statistical look but this time by category and not segment/product
+```sql
+-- What is the total quantity, revenue and discount for each category?
+SELECT 
+  pd.category_id as cat_id, pd.category_name AS cat_name,
+  SUM(sl.qty) AS cat_total_qty, 
+  SUM(sl.price * sl.qty) AS cat_no_disc_rev,
+  CAST(SUM(sl.price * sl.qty) AS MONEY) AS cat_no_disc_rev_str,
+  -- Explicit state for order of operations for revenue segment sale after discount applied recall discount needs to be turned to a decimal
+  -- Recall here we are multiply the qty times the price after accounting for discount
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) AS cat_rev_w_disc,
+  CAST( 
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) 
+  AS MONEY)AS cat_rev_w_disc_str,
+  -- Now we just want the discount amount for each segment so essientially the discount per purchased qty
+  ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2)AS cat_disc_total,
+  CAST(ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2) AS MONEY)AS cat_disc_total_str
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON sl.prod_id = pd.product_id
+GROUP BY cat_id, cat_name
+-- A little over explicit here as it's just two categoryies lol
+ORDER BY cat_id, cat_no_disc_rev DESC;
+```
+|cat_id|cat_name|cat_total_qty|cat_no_disc_rev|cat_no_disc_rev_str|cat_rev_w_disc|cat_rev_w_disc_str|cat_disc_total|cat_disc_total_str|
+|-----|----|----|-----|----|----|-----|-----|-----|
+|1|Womens|22734|575333|$575,333.00|505711.57|$505,711.57|69621.43|$69,621.43|
+|2|Mens|22482|714120|$714,120.00|627512.29|$627,512.29|86607.71|$86,607.71|
+
+<br>
+
+**5.** What is the top selling product for each category?
+```sql
+-- Each Category?
+SELECT DISTINCT category_id, category_name FROM balanced_tree.product_details;
+```
+|category_id|category_name|
+|----|----|
+|2|Mens|
+|1|Womens|
+
+* Just quick reminder of the only two categories within the product details
+  - So essentially were just finiding the top sold product for men and women and can similarly rank over our generated window
+
+```sql
+-- What is the top selling product for each category?
+SELECT
+  pd.product_id, pd.product_name, pd.category_name,
+  SUM(sl.qty) AS prod_cat_total_qty,
+  RANK() OVER (
+    PARTITION BY pd.category_name
+    ORDER BY SUM(sl.qty) DESC
+  ) AS category_qty_rank
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_id, pd.product_name, pd.category_name
+ORDER BY pd.category_name, category_qty_rank;
+```
+|product_id|product_name|category_name|prod_cat_total_qty|category_qty_rank|
+|-----|-----|------|-----|------|
+|2a2353|Blue Polo Shirt - Mens|Mens|3819|1|
+|5d267b|White Tee Shirt - Mens|Mens|3800|2|
+|f084eb|Navy Solid Socks - Mens|Mens|3792|3|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|Mens|3770|4|
+|b9a74d|White Striped Socks - Mens|Mens|3655|5|
+|c8d436|Teal Button Up Shirt - Mens|Mens|3646|6|
+|9ec847|Grey Fashion Jacket - Womens|Womens|3876|1|
+|c4a632|Navy Oversized Jeans - Womens|Womens|3856|2|
+|e83aa3|Black Straight Jeans - Womens|Womens|3786|3|
+|72f5d4|Indigo Rain Jacket - Womens|Womens|3757|4|
+|d5e9a6|Khaki Suit Jacket - Womens|Womens|3752|5|
+|e31d39|Cream Relaxed Jeans - Womens|Womens|3707|6|
+
+* Good reminder here how the order by for how we partition next is still using the non window function aggregated for its' ordering value
+
+```sql
+-- What is the top selling product for each category?
+WITH products_per_cat AS (
+SELECT
+  pd.product_id, pd.product_name, pd.category_name,
+  SUM(sl.qty) AS prod_cat_total_qty,
+  RANK() OVER (
+    PARTITION BY pd.category_name
+    ORDER BY SUM(sl.qty) DESC
+  ) AS category_qty_rank
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_id, pd.product_name, pd.category_name
+ORDER BY pd.category_name, category_qty_rank
+)
+SELECT * FROM products_per_cat WHERE category_qty_rank = 1;
+```
+|product_id|product_name|category_name|prod_cat_total_qty|category_qty_rank|
+|------|------|-----|-----|-----|
+|2a2353|Blue Polo Shirt - Mens|Mens|3819|1|
+|9ec847|Grey Fashion Jacket - Womens|Womens|3876|1|

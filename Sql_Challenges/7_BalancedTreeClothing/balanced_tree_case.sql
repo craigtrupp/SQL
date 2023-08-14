@@ -253,3 +253,34 @@ INNER JOIN balanced_tree.product_details AS pd
 GROUP BY product_id, product_name
 ORDER BY product_pre_disc_revenue DESC
 LIMIT 5;
+
+
+--2 What is the total quantity, revenue and discount for each segment?
+SELECT 
+  pd.segment_id as seg_id, pd.segment_name AS seg_name,
+  SUM(sl.qty) AS seg_total_qty, 
+  SUM(sl.price * sl.qty) AS seg_no_disc_rev,
+  CAST(SUM(sl.price * sl.qty) AS MONEY) AS seg_no_disc_rev_str,
+  -- Explicit state for order of operations for revenue segment sale after discount applied recall discount needs to be turned to a decimal
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) AS seg_rev_w_disc,
+  CAST( 
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) 
+  AS MONEY)AS seg_rev_w_disc_str,
+  -- Now we just want the discount amount for each segment 
+  ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2)AS seg_disc_total,
+  CAST(ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2) AS MONEY)AS seg_disc_total_str
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON sl.prod_id = pd.product_id
+GROUP BY seg_id, seg_name
+ORDER BY seg_name;

@@ -927,3 +927,98 @@ ORDER BY seg_name;
 * This matches with the answer!
   - Good reminder here for how to get revenue with and without the discount applied (it's an integer we need to turn into a decimal)
   - Also about how to just see what the discount per segment is alone 
+
+<br>
+
+**3.** What is the top selling product for each segment?
+```sql
+-- What is the top selling product for each segment?
+ SELECT 
+  pd.product_id, pd.product_name, pd.segment_id, pd.segment_name,
+  SUM(sl.qty) AS prod_seg_total
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd
+  ON sl.prod_id = pd.product_id
+GROUP BY pd.product_id, pd.product_name, pd.segment_id, pd.segment_name
+ORDER BY segment_name, prod_seg_total DESC;
+```
+* Output of 12 rows matches the total from the product details total row count which we want
+
+|product_id|product_name|segment_id|segment_name|prod_seg_total|
+|-----|-----|-----|-----|------|
+|9ec847|Grey Fashion Jacket - Womens|4|Jacket|3876|
+|72f5d4|Indigo Rain Jacket - Womens|4|Jacket|3757|
+|d5e9a6|Khaki Suit Jacket - Womens|4|Jacket|3752|
+|c4a632|Navy Oversized Jeans - Womens|3|Jeans|3856|
+|e83aa3|Black Straight Jeans - Womens|3|Jeans|3786|
+|e31d39|Cream Relaxed Jeans - Womens|3|Jeans|3707|
+|2a2353|Blue Polo Shirt - Mens|5|Shirt|3819|
+|5d267b|White Tee Shirt - Mens|5|Shirt|3800|
+|c8d436|Teal Button Up Shirt - Mens|5|Shirt|3646|
+|f084eb|Navy Solid Socks - Mens|6|Socks|3792|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|6|Socks|3770|
+|b9a74d|White Striped Socks - Mens|6|Socks|3655|
+
+* Here is a quick look pre ranking for the products ordered by their segment and the respective highest product from each segment in their grouped by and ordered by output above
+  - Let's look to rank the segmented values with another column output than use the CTE structure to just select the top which we can validate from above
+
+```sql
+ SELECT 
+  pd.product_id, pd.product_name, pd.segment_id, pd.segment_name,
+  SUM(sl.qty) AS prod_seg_total,
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty) DESC
+  ) AS segment_rank
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd
+  ON sl.prod_id = pd.product_id
+GROUP BY pd.product_id, pd.product_name, pd.segment_id, pd.segment_name
+ORDER BY segment_name, prod_seg_total DESC;
+```
+|product_id|product_name|segment_id|segment_name|prod_seg_total|segment_rank|
+|-----|-----|-----|------|------|------|
+|9ec847|Grey Fashion Jacket - Womens|4|Jacket|3876|1|
+|72f5d4|Indigo Rain Jacket - Womens|4|Jacket|3757|2|
+|d5e9a6|Khaki Suit Jacket - Womens|4|Jacket|3752|3|
+|c4a632|Navy Oversized Jeans - Womens|3|Jeans|3856|1|
+|e83aa3|Black Straight Jeans - Womens|3|Jeans|3786|2|
+|e31d39|Cream Relaxed Jeans - Womens|3|Jeans|3707|3|
+|2a2353|Blue Polo Shirt - Mens|5|Shirt|3819|1|
+|5d267b|White Tee Shirt - Mens|5|Shirt|3800|2|
+|c8d436|Teal Button Up Shirt - Mens|5|Shirt|3646|3|
+|f084eb|Navy Solid Socks - Mens|6|Socks|3792|1|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|6|Socks|3770|2|
+|b9a74d|White Striped Socks - Mens|6|Socks|3655|3|
+
+
+* Now the whole query
+```sql
+WITH ranked_segment_product_counts AS (
+ SELECT 
+  pd.product_id, pd.product_name, pd.segment_id, pd.segment_name,
+  SUM(sl.qty) AS prod_seg_total,
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty) DESC
+  ) AS segment_rank
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd
+  ON sl.prod_id = pd.product_id
+GROUP BY pd.product_id, pd.product_name, pd.segment_id, pd.segment_name
+ORDER BY segment_name, prod_seg_total DESC
+)
+SELECT
+* 
+FROM ranked_segment_product_counts
+WHERE segment_rank = 1
+ORDER BY prod_seg_total DESC;
+```
+|product_id|product_name|segment_id|segment_name|prod_seg_total|segment_rank|
+|-----|-----|-----|-----|-----|-----|
+|9ec847|Grey Fashion Jacket - Womens|4|Jacket|3876|1|
+|c4a632|Navy Oversized Jeans - Womens|3|Jeans|3856|1|
+|2a2353|Blue Polo Shirt - Mens|5|Shirt|3819|1|
+|f084eb|Navy Solid Socks - Mens|6|Socks|3792|1|
+
+<br>

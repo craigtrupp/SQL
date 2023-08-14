@@ -284,3 +284,26 @@ INNER JOIN balanced_tree.product_details AS pd
   ON sl.prod_id = pd.product_id
 GROUP BY seg_id, seg_name
 ORDER BY seg_name;
+
+
+-- 3  What is the top selling product for each segment?
+-- Can't call Window function order by by the aliased column for each products sales total for every segment
+WITH ranked_segment_product_counts AS (
+ SELECT 
+  pd.product_id, pd.product_name, pd.segment_id, pd.segment_name,
+  SUM(sl.qty) AS prod_seg_total,
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty) DESC
+  ) AS segment_rank
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd
+  ON sl.prod_id = pd.product_id
+GROUP BY pd.product_id, pd.product_name, pd.segment_id, pd.segment_name
+ORDER BY segment_name, prod_seg_total DESC
+)
+SELECT
+* 
+FROM ranked_segment_product_counts
+WHERE segment_rank = 1
+ORDER BY prod_seg_total DESC;

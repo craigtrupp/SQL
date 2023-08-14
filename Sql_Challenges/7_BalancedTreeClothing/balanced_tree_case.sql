@@ -1,4 +1,5 @@
--- `A. High Level Sales Analysis`
+-------------------- `A. High Level Sales Analysis`---------------------
+
 -- 1
 SELECT
   s.prod_id AS prod_id, pd.product_name,
@@ -52,7 +53,7 @@ FROM balanced_tree.sales;
 ------------------------- END OF SECTION A -------------------------
 
 
--- `B. Transaction Analysis`
+-------------------- `B. Transaction Analysis`---------------------
 -- 1
 SELECT
   COUNT(DISTINCT txn_id) AS unique_transactions
@@ -179,8 +180,6 @@ SELECT
 FROM agg_txn_member_counts;
 
 
-
-
 -- 6 Member Transaction Avg
 WITH txn_distinct_mmb_status AS (
 SELECT
@@ -241,3 +240,16 @@ GROUP BY member;
 
 
 ------------------------- END OF SECTION B -------------------------
+
+-- 1 What are the top 3 products by total revenue before discount?
+-- We'll take a peek at the first five
+SELECT 
+  pd.product_id, pd.product_name,
+  SUM(sl.price * sl.qty) AS product_pre_disc_revenue,
+  CAST(SUM(sl.price * sl.qty) AS MONEY) AS product_pre_disc_str
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON sl.prod_id = pd.product_id
+GROUP BY product_id, product_name
+ORDER BY product_pre_disc_revenue DESC
+LIMIT 5;

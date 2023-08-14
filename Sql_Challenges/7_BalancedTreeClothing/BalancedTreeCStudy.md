@@ -840,3 +840,90 @@ GROUP BY member;
 <br><br>
 
 ### `C. Product Analysis`
+
+**1.**  What are the top 3 products by total revenue before discount?
+```sql
+-- We'll take a peek at the first five
+SELECT 
+  pd.product_id, pd.product_name,
+  SUM(sl.price * sl.qty) AS product_pre_disc_revenue,
+  CAST(SUM(sl.price * sl.qty) AS MONEY) AS product_pre_disc_str
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON sl.prod_id = pd.product_id
+GROUP BY product_id, product_name
+ORDER BY product_pre_disc_revenue DESC
+LIMIT 5;
+```
+|product_id|product_name|product_pre_disc_revenue|product_pre_disc_str|
+|----|----|-----|-----|
+|2a2353|Blue Polo Shirt - Mens|217683|$217,683.00|
+|9ec847|Grey Fashion Jacket - Womens|209304|$209,304.00|
+|5d267b|White Tee Shirt - Mens|152000|$152,000.00|
+|f084eb|Navy Solid Socks - Mens|136512|$136,512.00|
+|e83aa3|Black Straight Jeans - Womens|121152|$121,152.00|
+
+<br>
+
+**2.** What is the total quantity, revenue and discount for each segment?
+```sql
+-- Let's peek at unique segments first to get an idea of what we're working with
+SELECT 
+  pd.product_id, pd.product_name, pd.price AS prod_price, pd.category_name, 
+  sl.qty AS sale_qty, sl.price AS sale_price, sl.discount AS sale_discount_perc
+FROM balanced_tree.sales AS sl 
+  INNER JOIN 
+  balanced_tree.product_details AS pd 
+  ON sl.prod_id = pd.product_id
+LIMIT 5;
+```
+|segment_id|segment_name|
+|----|-----|
+|4|Jacket|
+|6|Socks|
+|5|Shirt|
+|3|Jeans|
+
+* Look's pretty straight forward here for revenue pre & post discount as well as total counts
+
+```sql
+-- What is the total quantity, revenue and discount for each segment?
+SELECT 
+  pd.segment_id as seg_id, pd.segment_name AS seg_name,
+  SUM(sl.qty) AS seg_total_qty, 
+  SUM(sl.price * sl.qty) AS seg_no_disc_rev,
+  CAST(SUM(sl.price * sl.qty) AS MONEY) AS seg_no_disc_rev_str,
+  -- Explicit state for order of operations for revenue segment sale after discount applied recall discount needs to be turned to a decimal
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) AS seg_rev_w_disc,
+  CAST( 
+  ROUND (
+    SUM(sl.qty * (sl.price - ((sl.discount/100::NUMERIC) * sl.price)))
+  , 2) 
+  AS MONEY)AS seg_rev_w_disc_str,
+  -- Now we just want the discount amount for each segment 
+  ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2)AS seg_disc_total,
+  CAST(ROUND(
+    SUM(
+      ((sl.discount/100::NUMERIC) * sl.price) * sl.qty
+    ) , 2) AS MONEY)AS seg_disc_total_str
+FROM balanced_tree.sales AS sl 
+INNER JOIN balanced_tree.product_details AS pd 
+  ON sl.prod_id = pd.product_id
+GROUP BY seg_id, seg_name
+ORDER BY seg_name;
+```
+|seg_id|seg_name|seg_total_qty|seg_no_disc_rev|seg_no_disc_rev_str|seg_rev_w_disc|seg_rev_w_disc_str|seg_disc_total|seg_disc_total_str|
+|----|----|----|-----|-----|----|----|-----|-----|
+|4|Jacket|11385|366983|$366,983.00|322705.54|$322,705.54|44277.46|$44,277.46|
+|3|Jeans|11349|208350|$208,350.00|183006.03|$183,006.03|25343.97|$25,343.97|
+|5|Shirt|11265|406143|$406,143.00|356548.73|$356,548.73|49594.27|$49,594.27|
+|6|Socks|11217|307977|$307,977.00|270963.56|$270,963.56|37013.44|$37,013.44|
+
+* This matches with the answer!
+  - Good reminder here for how to get revenue with and without the discount applied (it's an integer we need to turn into a decimal)
+  - Also about how to just see what the discount per segment is alone 

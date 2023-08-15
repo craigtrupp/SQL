@@ -359,3 +359,74 @@ ORDER BY pd.category_name, category_qty_rank
 )
 SELECT * FROM products_per_cat WHERE category_qty_rank = 1;
 
+
+-- 6. Percentage of Revnue Split by Product within Each Category
+-- What is the percentage split of revenue by product for each segment?
+WITH segment_prod_totals AS (
+-- First an Idea of how the segments look
+SELECT
+  pd.product_name,
+  pd.segment_name,
+  SUM(sl.qty * sl.price) AS prod_seg_rev,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS prod_seg_rev_str,
+  SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+  ) AS segment_total,
+  CAST(
+    SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+    ) 
+  AS MONEY) AS seg_total_str,
+  -- Now Can Rank to select the top segment and get percentages
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty * sl.price) DESC
+  ) AS segment_rank
+FROM balanced_tree.product_details AS pd
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_name, pd.segment_name
+ORDER BY segment_name, segment_rank
+)
+SELECT 
+  *,
+  -- take the sum of the product total for each segment with window function below (floor division)
+  CONCAT(ROUND(100 * (prod_seg_rev / SUM(prod_seg_rev) OVER(PARTITION BY segment_name)::NUMERIC), 2), '%') AS seg_prod_proportion
+FROM segment_prod_totals;
+
+-- If to get the over proportions of segment totals for revenue (using the ranking we have for each product wihtin segment)
+WITH segment_totals AS (
+-- First an Idea of how the segments look
+SELECT
+  pd.product_name,
+  pd.segment_name,
+  SUM(sl.qty * sl.price) AS prod_seg_rev,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS prod_seg_rev_str,
+  SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+  ) AS segment_total,
+  CAST(
+    SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+    ) 
+  AS MONEY) AS seg_total_str,
+  -- Now Can Rank to select the top segment and get percentages
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty * sl.price) DESC
+  ) AS segment_rank
+FROM balanced_tree.product_details AS pd
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_name, pd.segment_name
+ORDER BY segment_name, segment_rank
+)
+SELECT 
+  segment_name,
+  segment_total,
+  seg_total_str,
+  -- Now we can get the proportion for the whole segment 
+  CONCAT(ROUND(100 * (segment_total / SUM(segment_total) OVER())::NUMERIC, 2), '%') AS seg_proportion,
+  CAST(SUM(segment_total) OVER() AS MONEY) AS total_revenue
+FROM segment_totals
+WHERE segment_rank = 1;

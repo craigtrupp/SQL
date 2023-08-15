@@ -453,7 +453,7 @@ SELECT
 FROM seg_cat_rev_totals;
 
 
--- 8 What is the percentage split of total revenue by category?
+-- 8. What is the percentage split of total revenue by category?
 SELECT
   pd.category_id, pd.category_name,
   SUM(sl.qty * sl.price) AS category_revenue,
@@ -468,3 +468,27 @@ FROM balanced_tree.product_details AS pd
 INNER JOIN balanced_tree.sales AS sl 
   ON pd.product_id = sl.prod_id
 GROUP BY category_id, category_name;
+
+
+-- 9. What is the total transaction “penetration” for each product? 
+-- (hint: penetration = number of transactions where at least 1 quantity of a product was purchased 
+-- divided by total number of transactions)
+WITH unique_prod_per_txns AS (
+SELECT
+  pd.product_id, pd.product_name, sl.txn_id,
+  COUNT(DISTINCT pd.product_id) AS product_sale_txns -- would eliminate any duplicate products in one txn
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY product_id, product_name, sl.txn_id
+)
+SELECT
+  product_id, 
+  product_name,
+  COUNT(*) AS product_txns,
+  -- Subquery for unique transaction count against the count of all products total txn count
+  CONCAT(ROUND(100 * (COUNT(*) / (SELECT COUNT(DISTINCT txn_id) FROM balanced_tree.sales)::NUMERIC), 2), '%') AS penetration_percentage,
+  (SELECT COUNT(DISTINCT txn_id) FROM balanced_tree.sales) AS unique_transactions
+FROM unique_prod_per_txns
+GROUP BY product_id, product_name
+ORDER BY penetration_percentage DESC;

@@ -1366,3 +1366,72 @@ GROUP BY category_id, category_name;
 |-----|-----|-----|-----|-----|-----|-----|
 |2|Mens|714120|$714,120.00|1289453|$1,289,453.00|55.38%|
 |1|Womens|575333|$575,333.00|1289453|$1,289,453.00|44.62%|
+
+<br>
+
+**9.** What is the total transaction “penetration” for each product? (hint: penetration = number of transactions where at least 1 quantity of a product was purchased divided by total number of transactions
+* So ... in a simpler way you simply want to aggregate each unique product in a single transaction and get the counts of how often a product occurs in any transaction, see below!
+
+```sql
+-- So for understanding, the below looks at how a product details are spread over one txn_id
+-- We can look at one transaction to get the total unique products in a txn 
+SELECT
+  pd.product_id, pd.product_name, sl.txn_id,
+  COUNT(DISTINCT pd.product_id) AS product_sale_txns, -- would eliminate any duplicate products in one txn (not that it looks like it occurs but could!)
+  SUM(COUNT(*)) OVER() AS total_sales_in_txn
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+WHERE sl.txn_id = '000027'
+GROUP BY product_id, product_name, sl.txn_id
+ORDER BY product_sale_txns DESC;
+```
+|product_id|product_name|txn_id|product_sale_txns|total_sales_in_txn|
+|-----|-----|------|-----|----|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|000027|1|7|
+|9ec847|Grey Fashion Jacket - Womens|000027|1|7|
+|b9a74d|White Striped Socks - Mens|000027|1|7|
+|c4a632|Navy Oversized Jeans - Womens|000027|1|7|
+|e31d39|Cream Relaxed Jeans - Womens|000027|1|7|
+|e83aa3|Black Straight Jeans - Womens|000027|1|7|
+|f084eb|Navy Solid Socks - Mens|000027|1|7|
+
+
+* Now we can aggregate the `COUNT()` of all products found in each transaction and simply divide against the unique txn_ids
+
+```sql
+WITH unique_prod_per_txns AS (
+SELECT
+  pd.product_id, pd.product_name, sl.txn_id,
+  COUNT(DISTINCT pd.product_id) AS product_sale_txns -- would eliminate any duplicate products in one txn
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY product_id, product_name, sl.txn_id
+)
+SELECT
+  product_id, 
+  product_name,
+  COUNT(*) AS product_txns,
+  -- Subquery for unique transaction count against the count of all products total txn count
+  CONCAT(ROUND(100 * (COUNT(*) / (SELECT COUNT(DISTINCT txn_id) FROM balanced_tree.sales)::NUMERIC), 2), '%') AS penetration_percentage,
+  (SELECT COUNT(DISTINCT txn_id) FROM balanced_tree.sales) AS unique_transactions
+FROM unique_prod_per_txns
+GROUP BY product_id, product_name
+ORDER BY penetration_percentage DESC;
+```
+|product_id|product_name|product_txns|penetration_percentage|unique_transactions|
+|-----|-----|-----|-----|-----|
+|f084eb|Navy Solid Socks - Mens|1281|51.24%|2500|
+|9ec847|Grey Fashion Jacket - Womens|1275|51.00%|2500|
+|c4a632|Navy Oversized Jeans - Womens|1274|50.96%|2500|
+|2a2353|Blue Polo Shirt - Mens|1268|50.72%|2500|
+|5d267b|White Tee Shirt - Mens|1268|50.72%|2500|
+|2feb6b|Pink Fluro Polkadot Socks - Mens|1258|50.32%|2500|
+|72f5d4|Indigo Rain Jacket - Womens|1250|50.00%|2500|
+|d5e9a6|Khaki Suit Jacket - Womens|1247|49.88%|2500|
+|e83aa3|Black Straight Jeans - Womens|1246|49.84%|2500|
+|b9a74d|White Striped Socks - Mens|1243|49.72%|2500|
+|e31d39|Cream Relaxed Jeans - Womens|1243|49.72%|2500|
+|c8d436|Teal Button Up Shirt - Mens|1242|49.68%|2500|
+

@@ -1132,3 +1132,173 @@ SELECT * FROM products_per_cat WHERE category_qty_rank = 1;
 |------|------|-----|-----|-----|
 |2a2353|Blue Polo Shirt - Mens|Mens|3819|1|
 |9ec847|Grey Fashion Jacket - Womens|Womens|3876|1|
+
+<br>
+
+**6.** What is the percentage split of revenue by product for each segment?
+```sql
+-- First an Idea of how the segments look
+SELECT
+  pd.product_name,
+  pd.segment_name,
+  SUM(sl.qty * sl.price) AS prod_seg_rev,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS prod_seg_rev_str
+FROM balanced_tree.product_details AS pd
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_name, pd.segment_name
+ORDER BY segment_name, prod_seg_rev DESC;
+```
+|product_name|segment_name|prod_seg_rev|prod_seg_rev_str|
+|-----|-----|-----|-----|
+|Grey Fashion Jacket - Womens|Jacket|209304|$209,304.00|
+|Khaki Suit Jacket - Womens|Jacket|86296|$86,296.00|
+|Indigo Rain Jacket - Womens|Jacket|71383|$71,383.00|
+|Black Straight Jeans - Womens|Jeans|121152|$121,152.00|
+|Navy Oversized Jeans - Womens|Jeans|50128|$50,128.00|
+|Cream Relaxed Jeans - Womens|Jeans|37070|$37,070.00|
+|Blue Polo Shirt - Mens|Shirt|217683|$217,683.00|
+|White Tee Shirt - Mens|Shirt|152000|$152,000.00|
+|Teal Button Up Shirt - Mens|Shirt|36460|$36,460.00|
+|Navy Solid Socks - Mens|Socks|136512|$136,512.00|
+|Pink Fluro Polkadot Socks - Mens|Socks|109330|$109,330.00|
+|White Striped Socks - Mens|Socks|62135|$62,135.00|
+
+```sql
+-- Let's got a bit deeper and use a window function to look at our segment total
+SELECT
+  pd.product_name,
+  pd.segment_name,
+  SUM(sl.qty * sl.price) AS prod_seg_rev,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS prod_seg_rev_str,
+  SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+  ) AS segment_total,
+  CAST(
+    SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+    ) 
+  AS MONEY) AS seg_total_str,
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty * sl.price) DESC
+  ) AS segment_rank
+FROM balanced_tree.product_details AS pd
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_name, pd.segment_name
+ORDER BY segment_name, segment_rank
+```
+|product_name|segment_name|prod_seg_rev|prod_seg_rev_str|segment_total|seg_total_str|segment_rank|
+|-----|-----|-----|----|-----|-----|-----|
+|Grey Fashion Jacket - Womens|Jacket|209304|$209,304.00|366983|$366,983.00|1|
+|Khaki Suit Jacket - Womens|Jacket|86296|$86,296.00|366983|$366,983.00|2|
+|Indigo Rain Jacket - Womens|Jacket|71383|$71,383.00|366983|$366,983.00|3|
+|Black Straight Jeans - Womens|Jeans|121152|$121,152.00|208350|$208,350.00|1|
+|Navy Oversized Jeans - Womens|Jeans|50128|$50,128.00|208350|$208,350.00|2|
+|Cream Relaxed Jeans - Womens|Jeans|37070|$37,070.00|208350|$208,350.00|3|
+|Blue Polo Shirt - Mens|Shirt|217683|$217,683.00|406143|$406,143.00|1|
+|White Tee Shirt - Mens|Shirt|152000|$152,000.00|406143|$406,143.00|2|
+|Teal Button Up Shirt - Mens|Shirt|36460|$36,460.00|406143|$406,143.00|3|
+|Navy Solid Socks - Mens|Socks|136512|$136,512.00|307977|$307,977.00|1|
+|Pink Fluro Polkadot Socks - Mens|Socks|109330|$109,330.00|307977|$307,977.00|2|
+|White Striped Socks - Mens|Socks|62135|$62,135.00|307977|$307,977.00|3|
+
+* And lastly we can get the product segment proportion now
+```sql
+-- What is the percentage split of revenue by product for each segment?
+WITH segment_prod_totals AS (
+-- First an Idea of how the segments look
+SELECT
+  pd.product_name,
+  pd.segment_name,
+  SUM(sl.qty * sl.price) AS prod_seg_rev,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS prod_seg_rev_str,
+  SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+  ) AS segment_total,
+  CAST(
+    SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+    ) 
+  AS MONEY) AS seg_total_str,
+  -- Now Can Rank to select the top segment and get percentages
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty * sl.price) DESC
+  ) AS segment_rank
+FROM balanced_tree.product_details AS pd
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_name, pd.segment_name
+ORDER BY segment_name, segment_rank
+)
+SELECT 
+  *,
+  -- take the sum of the product total for each segment with window function below (floor division)
+  CONCAT(ROUND(100 * (prod_seg_rev / SUM(prod_seg_rev) OVER(PARTITION BY segment_name)::NUMERIC), 2), '%') AS seg_prod_proportion
+FROM segment_prod_totals;
+```
+|product_name|segment_name|prod_seg_rev|prod_seg_rev_str|segment_total|seg_total_str|segment_rank|seg_prod_proportion|
+|-----|-----|------|-----|-----|-----|----|-----|
+|Grey Fashion Jacket - Womens|Jacket|209304|$209,304.00|366983|$366,983.00|1|57.03%|
+|Khaki Suit Jacket - Womens|Jacket|86296|$86,296.00|366983|$366,983.00|2|23.51%|
+|Indigo Rain Jacket - Womens|Jacket|71383|$71,383.00|366983|$366,983.00|3|19.45%|
+|Black Straight Jeans - Womens|Jeans|121152|$121,152.00|208350|$208,350.00|1|58.15%|
+|Navy Oversized Jeans - Womens|Jeans|50128|$50,128.00|208350|$208,350.00|2|24.06%|
+|Cream Relaxed Jeans - Womens|Jeans|37070|$37,070.00|208350|$208,350.00|3|17.79%|
+|Blue Polo Shirt - Mens|Shirt|217683|$217,683.00|406143|$406,143.00|1|53.60%|
+|White Tee Shirt - Mens|Shirt|152000|$152,000.00|406143|$406,143.00|2|37.43%|
+|Teal Button Up Shirt - Mens|Shirt|36460|$36,460.00|406143|$406,143.00|3|8.98%|
+|Navy Solid Socks - Mens|Socks|136512|$136,512.00|307977|$307,977.00|1|44.33%|
+|Pink Fluro Polkadot Socks - Mens|Socks|109330|$109,330.00|307977|$307,977.00|2|35.50%|
+|White Striped Socks - Mens|Socks|62135|$62,135.00|307977|$307,977.00|3|20.18%|
+
+* So we can now look at the segments as a total outside of the individual product segment proportions to see how each segment accounts for revenue and not just per product too 
+```sql
+WITH segment_totals AS (
+-- First an Idea of how the segments look
+SELECT
+  pd.product_name,
+  pd.segment_name,
+  SUM(sl.qty * sl.price) AS prod_seg_rev,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS prod_seg_rev_str,
+  SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+  ) AS segment_total,
+  CAST(
+    SUM(SUM(sl.qty * sl.price)) OVER (
+    PARTITION BY pd.segment_name
+    ) 
+  AS MONEY) AS seg_total_str,
+  -- Now Can Rank to select the top segment and get percentages
+  RANK() OVER(
+    PARTITION BY pd.segment_name
+    ORDER BY SUM(sl.qty * sl.price) DESC
+  ) AS segment_rank
+FROM balanced_tree.product_details AS pd
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY pd.product_name, pd.segment_name
+ORDER BY segment_name, segment_rank
+)
+SELECT 
+  segment_name,
+  segment_total,
+  seg_total_str,
+  -- Now we can get the proportion for the whole segment 
+  CONCAT(ROUND(100 * (segment_total / SUM(segment_total) OVER())::NUMERIC, 2), '%') AS seg_proportion,
+  CAST(SUM(segment_total) OVER() AS MONEY) AS total_revenue
+FROM segment_totals
+WHERE segment_rank = 1;
+```
+|segment_name|segment_total|seg_total_str|seg_proportion|total_revenue|
+|-----|------|------|------|------|
+|Jacket|366983|$366,983.00|28.46%|$1,289,453.00|
+|Jeans|208350|$208,350.00|16.16%|$1,289,453.00|
+|Shirt|406143|$406,143.00|31.50%|$1,289,453.00|
+|Socks|307977|$307,977.00|23.88%|$1,289,453.00|
+
+<br>
+
+**7.** What is the percentage split of revenue by segment for each category?

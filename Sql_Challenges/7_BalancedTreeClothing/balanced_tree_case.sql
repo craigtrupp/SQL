@@ -358,3 +358,4 @@ GROUP BY pd.product_id, pd.product_name, pd.category_name
 ORDER BY pd.category_name, category_qty_rank
 )
 SELECT * FROM products_per_cat WHERE category_qty_rank = 1;
+

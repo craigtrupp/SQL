@@ -449,5 +449,22 @@ SELECT
   CONCAT( ROUND(
     100 * ( segment_category_sale_totals / SUM(segment_category_sale_totals) OVER (
       PARTITION BY category_name ) )
-  , 2), '%')AS seg_cat_perc
+  , 2), '%') AS seg_cat_perc
 FROM seg_cat_rev_totals;
+
+
+-- 8 What is the percentage split of total revenue by category?
+SELECT
+  pd.category_id, pd.category_name,
+  SUM(sl.qty * sl.price) AS category_revenue,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS cat_rev_str,
+  SUM(SUM(sl.qty * sl.price)) OVER() AS total_revenue,
+  CAST(SUM(SUM(sl.qty * sl.price)) OVER() AS MONEY) AS total_revenue_str,
+  CONCAT(
+    ROUND( 100 * (SUM(sl.qty * sl.price) / SUM(SUM(sl.qty * sl.price)) OVER()::NUMERIC) -- takes category revnue / window revenue
+    , 2)
+  , '%') AS total_category_rev_percentage
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY category_id, category_name;

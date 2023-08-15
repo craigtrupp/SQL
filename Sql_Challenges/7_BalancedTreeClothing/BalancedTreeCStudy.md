@@ -1322,7 +1322,7 @@ SELECT
   CONCAT( ROUND(
     100 * ( segment_category_sale_totals / SUM(segment_category_sale_totals) OVER (
       PARTITION BY category_name ) )
-  , 2), '%')AS seg_cat_perc
+  , 2), '%') AS seg_cat_perc
 FROM seg_cat_rev_totals;
 ```
 |segment_id|segment_name|category_id|category_name|segment_category_sale_totals|seg_cat_stotals_str|seg_cat_perc|
@@ -1331,3 +1331,38 @@ FROM seg_cat_rev_totals;
 |6|Socks|2|Mens|307977|$307,977.00|43.13%|
 |4|Jacket|1|Womens|366983|$366,983.00|63.79%|
 |3|Jeans|1|Womens|208350|$208,350.00|36.21%|
+
+<br>
+
+**8.** What is the percentage split of total revenue by category?
+```sql
+-- Quick distinct check on category name and id values in product details
+SELECT DISTINCT category_id, category_name FROM balanced_tree.product_details;
+```
+|category_id|category_name|
+|-----|-----|
+|2|Mens|
+|1|Womens|
+
+* Now to the calculations for two category percentages
+```sql
+-- What is the percentage split of total revenue by category?
+SELECT
+  pd.category_id, pd.category_name,
+  SUM(sl.qty * sl.price) AS category_revenue,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS cat_rev_str,
+  SUM(SUM(sl.qty * sl.price)) OVER() AS total_revenue,
+  CAST(SUM(SUM(sl.qty * sl.price)) OVER() AS MONEY) AS total_revenue_str,
+  CONCAT(
+    ROUND( 100 * (SUM(sl.qty * sl.price) / SUM(SUM(sl.qty * sl.price)) OVER()::NUMERIC) -- takes category revnue / window revenue
+    , 2)
+  , '%') AS total_category_rev_percentage
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY category_id, category_name;
+```
+|category_id|category_name|category_revenue|cat_rev_str|total_revenue|total_revenue_str|total_category_rev_percentage|
+|-----|-----|-----|-----|-----|-----|-----|
+|2|Mens|714120|$714,120.00|1289453|$1,289,453.00|55.38%|
+|1|Womens|575333|$575,333.00|1289453|$1,289,453.00|44.62%|

@@ -430,3 +430,24 @@ SELECT
   CAST(SUM(segment_total) OVER() AS MONEY) AS total_revenue
 FROM segment_totals
 WHERE segment_rank = 1;
+
+
+-- 7 What is the percentage split of revenue by segment for each category?
+WITH seg_cat_rev_totals AS (
+SELECT
+  pd.segment_id, pd.segment_name, pd.category_id, pd.category_name,
+  SUM(sl.qty * sl.price) as segment_category_sale_totals,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS seg_cat_stotals_str
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY segment_id, segment_name, category_id, category_name
+ORDER BY segment_name, category_name
+)
+SELECT
+  *,
+  CONCAT( ROUND(
+    100 * ( segment_category_sale_totals / SUM(segment_category_sale_totals) OVER (
+      PARTITION BY category_name ) )
+  , 2), '%')AS seg_cat_perc
+FROM seg_cat_rev_totals;

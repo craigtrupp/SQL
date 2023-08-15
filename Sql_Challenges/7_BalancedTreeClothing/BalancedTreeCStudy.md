@@ -1302,3 +1302,32 @@ WHERE segment_rank = 1;
 <br>
 
 **7.** What is the percentage split of revenue by segment for each category?
+* Straight forward approach with one. The category is simply men or womens so we are looking each segment within the men/women category and sales and looking for the segment's representative proportion for the m/f category (only 4 such categories and two segments per category)
+
+```sql
+-- What is the percentage split of revenue by segment for each category?
+WITH seg_cat_rev_totals AS (
+SELECT
+  pd.segment_id, pd.segment_name, pd.category_id, pd.category_name,
+  SUM(sl.qty * sl.price) as segment_category_sale_totals,
+  CAST(SUM(sl.qty * sl.price) AS MONEY) AS seg_cat_stotals_str
+FROM balanced_tree.product_details AS pd 
+INNER JOIN balanced_tree.sales AS sl 
+  ON pd.product_id = sl.prod_id
+GROUP BY segment_id, segment_name, category_id, category_name
+ORDER BY segment_name, category_name
+)
+SELECT
+  *,
+  CONCAT( ROUND(
+    100 * ( segment_category_sale_totals / SUM(segment_category_sale_totals) OVER (
+      PARTITION BY category_name ) )
+  , 2), '%')AS seg_cat_perc
+FROM seg_cat_rev_totals;
+```
+|segment_id|segment_name|category_id|category_name|segment_category_sale_totals|seg_cat_stotals_str|seg_cat_perc|
+|-----|-----|-----|-----|-----|-----|-------|
+|5|Shirt|2|Mens|406143|$406,143.00|56.87%|
+|6|Socks|2|Mens|307977|$307,977.00|43.13%|
+|4|Jacket|1|Womens|366983|$366,983.00|63.79%|
+|3|Jeans|1|Womens|208350|$208,350.00|36.21%|

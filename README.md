@@ -67,19 +67,21 @@
 
 <p align="center">
     <a href="/Sql_Challenges/1_DannyDiner/Danny_Diners_Challenge.md">
-        <img alt="Danny's Diner" src="images/case_study_1_clp.png"
-        height="160" width="158">
+        <img alt="Danny's Diner" src="images/cs_1.png"
+        height="160" width="160">
     </a>
 &nbsp; &nbsp;
     <a href="/Sql_Challenges/2_PizzaRunner/Pizza_Runner.md">
-        <img alt="Pizza Runner" src="images/case_study_2_clp.png" height="160" width="158">
+        <img alt="Pizza Runner" src="images/cs_2.png" height="160" width="160">
     </a>
 &nbsp; &nbsp;
     <a href="/Sql_Challenges/3_Foodie_Fi/Foddie_Fi.md">
-        <img alt="Foodie Fi" src="images/case_study_3.png" height="160" width="158">
+        <img alt="Foodie Fi" src="images/cs_3.png" 
+        height="160" width="160">
     </a>
 &nbsp; &nbsp;
     <a href="/Sql_Challenges/4_DataBank/Data_Bank_CStudy.md">
-        <img alt="Data Bank" src="images/case_study_4.png" height="160" width="158">
+        <img alt="Data Bank" src="images/cs_4.png" 
+        height="160" width="160">
     </a>
 </p>

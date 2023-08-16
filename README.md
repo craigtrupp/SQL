@@ -72,7 +72,7 @@
     </a>
 &nbsp; &nbsp;
     <a href="/Sql_Challenges/2_PizzaRunner/Pizza_Runner.md">
-        <img alt="Pizza Runner" src="images/cs_2.png" height="160" width="160">
+        <img alt="Pizza Runner" src="images/cs_2.png" height="161" width="161">
     </a>
 &nbsp; &nbsp;
     <a href="/Sql_Challenges/3_Foodie_Fi/Foddie_Fi.md">
@@ -82,6 +82,29 @@
 &nbsp; &nbsp;
     <a href="/Sql_Challenges/4_DataBank/Data_Bank_CStudy.md">
         <img alt="Data Bank" src="images/cs_4.png" 
+        height="160" width="160">
+    </a>
+</p>
+
+<br>
+
+<p align="center">
+    <a href="/Sql_Challenges/5_DataMart/DataMart_CS.md">
+        <img alt="Data Mark" src="images/cs_5.png"
+        height="160" width="160">
+    </a>
+&nbsp; &nbsp;
+    <a href="/Sql_Challenges/6_CliqueBait/CBAttenCapturing.md">
+        <img alt="Clique Bait" src="images/cs_6.png" height="160" width="160">
+    </a>
+&nbsp; &nbsp;
+    <a href="/Sql_Challenges/7_BalancedTreeClothing/BalancedTreeCStudy.md">
+        <img alt="Balanced Tree" src="images/cs_7.png" 
+        height="160" width="160">
+    </a>
+&nbsp; &nbsp;
+    <a href="/Sql_Challenges/4_DataBank/Data_Bank_CStudy.md">
+        <img alt="Fresh Segments" src="images/cs_8.png" 
         height="160" width="160">
     </a>
 </p>

@@ -3,19 +3,19 @@
 
 <br>
 
-### **Introduction**
+### **Introduction & Business Case** 💼
 Balanced Tree Clothing Company prides themselves on providing an optimised range of clothing and lifestyle wear for the modern adventurer!
 
 Danny, the CEO of this trendy fashion company has asked you to assist the team’s merchandising teams analyse their sales performance and generate a basic financial report to share with the wider business.
 
 <br>
 
-### **Available Data**
+### **Available Data 🗄️**
 For this case study there is a total of 4 datasets for this case study - however you will only need to utilise 2 main tables to solve all of the regular questions, and the additional 2 tables are used only for the bonus challenge question!
 
 <br>
 
-`Product Details`
+**Product Details 📁**
 * `balanced_tree.product_details` includes all information about the entire range that Balanced Clothing sells in their store.
 
 |product_id|price|product_name|category_id|segment_id|style_id|category_name|segment_name|style_name|
@@ -28,7 +28,7 @@ For this case study there is a total of 4 datasets for this case study - however
 
 <br>
 
-`Product Sales`
+**Product Sales 📁**
 * `balanced_tree.sales` contains product level information for all the transactions made for Balanced Tree including **quantity, price, percentage discount, member status, a transaction ID** and also the **transaction timestamp**.
 
 |prod_id|qty|price|discount|member|txn_id|start_txn_time|
@@ -41,8 +41,8 @@ For this case study there is a total of 4 datasets for this case study - however
 
 <br>
 
-`Product Hierarcy & Product Price`
-Thes tables are used only for the bonus question where we will use them to recreate the **balanced_tree.product_details table**.
+**Product Hierarcy & Product Price 📁**
+* These tables are used only for the bonus question where we will use them to recreate the **balanced_tree.product_details table**.
 
 
 - balanced_tree.product_hierarchy
@@ -71,10 +71,18 @@ Thes tables are used only for the bonus question where we will use them to recre
 
 <br>
 
-### **Case Study Questions**
+### **Case Study Questions** ❓
 The following questions can be considered key business questions and metrics that the Balanced Tree team requires for their monthly reports.
 
 Each question can be answered using a single query - but as you are writing the SQL to solve each individual problem, keep in mind how you would generate all of these metrics in a single SQL script which the Balanced Tree team can run each month.
+
+#### `Case Study : Categories` 📑
+<ol>
+  <li>High Level Sales Analysis</li>
+  <li>Transaction Analysis</li>
+  <li>Product Analysis</li>
+  <li>Bonus Challenge</li>
+</ol>
 
 <br>
 
@@ -1441,7 +1449,8 @@ ORDER BY penetration_percentage DESC;
 
 * `Note` : Will be using a Recursive CTE here so let's remind ourselves how and what they do!
   - https://builtin.com/data-science/recursive-sql
-  - A recursive SQL common table expression (CTE) is a query that continuously references a previous result until it returns an empty result. It’s best used as a convenient way to extract information from hierarchical data. It’s achieved using a CTE, which in SQL is known as a “with” statement. This allows you to name the result and reference it within other queries later.    
+  - A recursive SQL common table expression (CTE) is a query that continuously references a previous result until it returns an empty result. It’s best used as a convenient way to extract information from hierarchical data. It’s achieved using a CTE, which in SQL is known as a “with” statement. This allows you to name the result and reference it within other queries later. 
+  - https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-recursive-query/   
 
 ```sql
 -- Basic Recursive CTE
@@ -1471,3 +1480,30 @@ FROM cte_count;
 |8|
 |9|
 |10|
+
+* Another good example of a recursive CTE is a factorial
+```sql
+--factorial
+-- 1! = 1
+-- 2! = 2 * 1
+-- 3! = 3 * 2 * 1
+-- n! = n * (n- 1)!
+
+WITH RECURSIVE cteFactorial AS (
+SELECT 
+  1 AS n, 1 AS fact
+  UNION ALL
+  SELECT n + 1, (n+1) * fact
+  FROM cteFactorial
+  WHERE n < 5
+)
+SELECT n, fact
+FROM cteFactorial;
+```
+|n|fact|
+|----|----|
+|1|1|
+|2|2|
+|3|6|
+|4|24|
+|5|120|

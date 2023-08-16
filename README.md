@@ -19,17 +19,17 @@
 
 <br>
 
-* **[Marketing Analytics Section](/Marketing_Analytics_CaseStudy/)**
+* **[Marketing Analytics Section](/Marketing_Analytics_CaseStudy/)** 
     - This second section of the course turns to a sample business request and how the path to understanding and using our data can be leveraged to accomplish this sample business request.
     - The final solution was crafted with the following `techniques` 🤹‍♂️ 
         * Window Functions, Practical Application of Different Types of Table Joins, Case Statements for Data Transformation/Manipulation, Table Creation
-    - `Data Overview`
+    - `Data Overview` :page_with_curl:
         * Review Schema and **ERD** for Tables used in final solution development
         * [Data & ERD Overview](/Marketing_Analytics_CaseStudy/Understanding_Data.md)
-    - `Case Study Overview, Business Request & Table Join Analysis`
+    - `Case Study Overview, Business Request & Table Join Analysis` 🧾
         * Using the ERD this markdown file highlights the Objective of the Case Study as well as the framework for analyzing table joins
         * [Overview, Request & Join Analysis](/Marketing_Analytics_CaseStudy/MultipleTableJoins_CStudyReview.md)
-    - `Case Study Solution - Deliverable SQL Script`
+    - `Case Study Solution - Deliverable SQL Script` :envelope_with_arrow:
         * Within the report section of the markdown file you can find the sql script that would be used to create the table for data insights 
         * [Case Study Solution](/Marketing_Analytics_CaseStudy/Sql_ScriptingSol.md)
 
@@ -38,12 +38,37 @@
 * **[People Analytics Case Study](/People_Analytics)**
     - The second complete SQL case study mocks us assisting **HR Analytica** to construct datasets to answer basic reporting questions and also feed their bespoke People Analytics dashboards.
     - A heavry emphasis on creating **reusable data assets** mostly achieved through **VIEWS**
-    - `Case Study Overview and Initial Data Exploration`
+    - `Case Study Overview and Initial Data Exploration` 📃
         * [Overview & Explore](/People_Analytics/CaseStudy_Intro.md)
-    - `Reusable Data Assets & Views`
+    - `Reusable Data Assets & Views` ♻️
         * [Data Assets & Views](/People_Analytics/DataAssets_Views.md)
-    - `Historical Data & SCD`
+    - `Historical Data & SCD` ⏲️
         * Idea of better understanding slowly changing dimensions
         * [Historical Data / SCD](/People_Analytics/SnapShot_HistoricData.md)
-    - `Case Study Solution`
-        * [Cumulative Solution Markdown & Test Questions](/People_Analytics)
+    - `Case Study Solution` 📑
+        * [Cumulative Solution Markdown & Test Questions](/People_Analytics/HR_AnalyticsCStudy.md)
+
+<br>
+
+* **[Additional Techniques](/AdditionalTechniques)**
+    - This particular short section looks into common approaches for 
+        - **String Transformation & Functions** 🧵
+            * Basic String Methods, Pattern Matching, RegEx
+            * [String Techniques](/AdditionalTechniques/Str_Transformations.md) 
+        - **Date and Time Conversion** 📅
+            * Date Manipulation, Timestamp Manipulation, Time Zone Case Study (Brief), Aggregating on Date Intervals
+            * [Date & Time](/AdditionalTechniques/Date_Time_Transformations.md)
+
+<br>
+
+* **[SQL Challenges](/Sql_Challenges)**
+    - Please see the Section's Individual Markdown file for more. Each image below will link to the Case Study for each Challenge
+    - **[Section Markdown](/Sql_Challenges/SqlChallenges.md)**
+
+<p align="center">
+    <a href="/Sql_Challenges/Danny_Diners_Challenge.md">
+        <img alt="Danny's Diner" src="images/case_study_1.png">
+    </a>
+&nbsp; &nbsp; &nbsp; &nbsp;
+  <img alt="Pizza Runner" src="images/case_study_2.png" height="303">
+</p>

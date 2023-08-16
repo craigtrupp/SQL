@@ -45,7 +45,7 @@ The insights requested by the marketing team include key statistics for the **cu
 
 ## Email Template
 The email template has been provided and consists of the following data analytics and customer insight components numbered and detailed below
-![Email Template](images/Template1_2.png)
+![Email Template](Images/Template1_2.png)
 
 ### Category Insights (Requirements)
 * `Top Category`
@@ -72,10 +72,10 @@ The email template has been provided and consists of the following data analytic
 ## ERD Revisited / Exploration
 * Now with an idea of what we want, where is it and do we have a like document to see where all the tables are to start on our tasks?
 
-![ERD](images/erd_jmt.png)
+![ERD](Images/erd_jmt.png)
 
 ### Table Join Analysis
-![Join Analysis](images/join_anlysis.png)
+![Join Analysis](Images/join_anlysis.png)
 
 * Review MutlipleTableJoins (markdown in same repo folder) for considerations when starting to join tables, in particular the unique counts and anti-join, join type logic to review result of type joins performed
     * Good reminders in there about potential wonky returns from joins when just initially starting to join data from one table to another

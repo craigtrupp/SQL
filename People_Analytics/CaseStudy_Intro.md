@@ -10,11 +10,11 @@ In our second complete SQL case study - we will assist HR Analytica to construct
 ## Final Outputs (Company & Employee)
 <br>
 
-![Final Output](images/FOutput_1.png)
-![Final Output 2](images/FOutput2.png)
+![Final Output](Images/FOutput_1.png)
+![Final Output 2](Images/FOutput2.png)
 
-![Emp Output 1](images/Emp1.png)
-![Emp Output 2](images/Emp2.png)
+![Emp Output 1](Images/Emp1.png)
+![Emp Output 2](Images/Emp2.png)
 
 ---
 
@@ -57,7 +57,7 @@ A historic data asset is also required by HR Analytica so their People Analytics
 
 ## Data Exploration
 ### ERD
-![People Entity Relationship](images/ERD_PAnalytics.png)
+![People Entity Relationship](Images/ERD_PAnalytics.png)
 
 ### Tables
 #### `employee`

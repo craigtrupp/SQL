@@ -3,7 +3,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 
 <br>
 
-### Skills Covered in Challenges
+### Primary Skills Covered in Challenges
 * Select & Sort Data
 * Record Counts & Distinct Values
 * Summary Statistics

@@ -67,10 +67,10 @@
 
 <p align="center">
     <a href="/Sql_Challenges/1_DannyDiner/Danny_Diners_Challenge.md">
-        <img alt="Danny's Diner" src="images/case_study_1.png">
+        <img alt="Danny's Diner" src="images/case_study_1_clp.png">
     </a>
 &nbsp; &nbsp; &nbsp; &nbsp;
     <a href="/Sql_Challenges/2_PizzaRunner/Pizza_Runner.md">
-        <img alt="Pizza Runner" src="images/case_study_2.png" height="303">
+        <img alt="Pizza Runner" src="images/case_study_2_clp.png">
     </a>
 </p>

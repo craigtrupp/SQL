@@ -71,6 +71,6 @@
     </a>
 &nbsp; &nbsp; &nbsp; &nbsp;
     <a href="/Sql_Challenges/2_PizzaRunner/Pizza_Runner.md">
-        <img alt="Pizza Runner" src="images/case_study_2_clp.png">
+        <img alt="Pizza Runner" src="images/case_study_2_clp.png" height="158">
     </a>
 </p>

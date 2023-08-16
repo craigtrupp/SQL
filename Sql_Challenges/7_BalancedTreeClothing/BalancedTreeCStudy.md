@@ -1435,3 +1435,39 @@ ORDER BY penetration_percentage DESC;
 |e31d39|Cream Relaxed Jeans - Womens|1243|49.72%|2500|
 |c8d436|Teal Button Up Shirt - Mens|1242|49.68%|2500|
 
+<br>
+
+**10.** What is the most common combination of at least 1 quantity of any 3 products in a 1 single transaction? Super bonus - what are the quantity, revenue, discount and net revenue from the top 3 products in the transactions where all 3 were purchased?
+
+* `Note` : Will be using a Recursive CTE here so let's remind ourselves how and what they do!
+  - https://builtin.com/data-science/recursive-sql
+  - A recursive SQL common table expression (CTE) is a query that continuously references a previous result until it returns an empty result. It’s best used as a convenient way to extract information from hierarchical data. It’s achieved using a CTE, which in SQL is known as a “with” statement. This allows you to name the result and reference it within other queries later.    
+
+```sql
+-- Basic Recursive CTE
+WITH RECURSIVE cte_count AS (
+-- Anchor (Seed)
+SELECT 1 n
+UNION ALL
+-- recursive member
+SELECT n + 1
+FROM cte_count 
+WHERE n < 10 -- termination check
+)
+-- Invocation
+SELECT n
+FROM cte_count;
+
+```
+|n|
+|--|
+|1|
+|2|
+|3|
+|4|
+|5|
+|6|
+|7|
+|8|
+|9|
+|10|

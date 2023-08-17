@@ -24,7 +24,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 ### `1 - Danny's Diner` 🥡
 * Danny wants to use the data to answer a few simple questions about his customers, especially about their visiting patterns, how much money they’ve spent and also which menu items are their favourite. 
 * Having this deeper connection with his customers will help him deliver a better and more personalised experience for his loyal customers. 
-* The Dataset (Schema), ERD (Entity Relationship Diagram), and Case Study Questions can be found here : [Danny's Diner Challenge](/1_DannyDiner/Danny_Diners_Challenge.md)
+* The Dataset (Schema), ERD (Entity Relationship Diagram), and Case Study Questions can be found here : [Danny's Diner Challenge](/Sql_Challenges/1_DannyDiner/Danny_Diners_Challenge.md)
 
 <br>
 
@@ -35,7 +35,7 @@ Following completing the educational material for `Serious SQL`, the course offe
     - Ingredient Optimization
     - Pricing and Ratings
 * This challenge includes several examples of multiple joins, conditional `SUM CASES`, temp table creation, regex pattern and table creation as well as data cleanup for incomplete or incosistent data values across the database schema
-* [Pizza Runner Challenge](/2_PizzaRunner/Pizza_Runner.md)
+* [Pizza Runner Challenge](/Sql_Challenges/2_PizzaRunner/Pizza_Runner.md)
 
 <br>
 
@@ -44,7 +44,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 * Danny created Foodie-Fi with a data driven mindset and wanted to ensure all future investment decisions and new features were decided using data. This case study focuses on using subscription style digital data to answer important business questions.
 * While this is a smaller data schema and relational model, the presence of SCD (slowly changing dimensions) offers unique challenges to aggregate or finding leading/trailing data for our customer data
 * This challenge also introduces **distribution** functions used to bin customers and their event history for clearer insights on customer behavior
-* [Foodie Fi Subscription Challenge](/3_Foodie_Fi/Foddie_Fi.md)
+* [Foodie Fi Subscription Challenge](/Sql_Challenges/3_Foodie_Fi/Foddie_Fi.md)
 
 <br>
 
@@ -57,7 +57,7 @@ Following completing the educational material for `Serious SQL`, the course offe
     - Threshold consideration for comparisons of balances in adjacent months
 * Such approaches like `leading/lag window functions`, `generated series` for interval mocking, `conditional aggregate` functions for transaction determinstic values helped in the preparation of the customer & transaction data requested in the case study.
     - Window functions also included partitioned sections for customer balances and determining of activity against lagging balances
-* [Data Bank Customer Challenge](/4_DataBank/Data_Bank_CStudy.md)
+* [Data Bank Customer Challenge](/Sql_Challenges/4_DataBank/Data_Bank_CStudy.md)
 
 <br>
 
@@ -73,7 +73,7 @@ Following completing the educational material for `Serious SQL`, the course offe
     - Conditional Type setting from sql function returns on uncleansed data
 * The Data Exploration looks to use the date values and is most resourceful through our ability to partition and generate summary statistics by partitioned values like **calendar_year** over different demographics
 * https://github.com/craigtrupp/SrsSQL/blob/main/Sql_Challenges/5_DataMart/DataMart_CS.md
-* [Data Mart Challenge](/5_DataMart/DataMart_CS.md)
+* [Data Mart Challenge](/Sql_Challenges/5_DataMart/DataMart_CS.md)
 
 
 <br>
@@ -96,7 +96,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 * **Campaign Analysis**
     - Temp Table Creation via chained CTE information gathering
     - Conditional Case Setting and Subquerying for Campaign designation with respect to ad impressions and clicks per unique user visit and chaining to products included in user site visit
-* [Clique Bait Challenge](/6_CliqueBait/CBAttenCapturing.md)
+* [Clique Bait Challenge](/Sql_Challenges/6_CliqueBait/CBAttenCapturing.md)
 
 <br>
 
@@ -108,7 +108,7 @@ Following completing the educational material for `Serious SQL`, the course offe
     - Transaction Analysis
     - Product Analysis
 * The last section challenges us to deconstruct two tables to generate a current product table representation 
-* [Balanced Tree Clothing Challenge](/7_BalancedTreeClothing/BalancedTreeCStudy.md)
+* [Balanced Tree Clothing Challenge](/Sql_Challenges/7_BalancedTreeClothing/BalancedTreeCStudy.md)
 
 
 

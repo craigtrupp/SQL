@@ -492,3 +492,100 @@ SELECT
 FROM unique_prod_per_txns
 GROUP BY product_id, product_name
 ORDER BY penetration_percentage DESC;
+
+
+-- 10 What is the most common combination of at least 1 quantity of any 3 products in a 1 single 
+--transaction? Super bonus - what are the quantity, revenue, discount and net revenue from the top 3 products in the transactions where all 3 were purchased?
+
+DROP TABLE IF EXISTS temp_product_combos;
+CREATE TEMP TABLE temp_product_combos AS
+WITH RECURSIVE input(product) AS (
+  SELECT product_id::TEXT FROM balanced_tree.product_details
+),
+output_table AS (
+   SELECT 
+    ARRAY[product] AS combo,
+    product,
+    1 AS product_counter
+   FROM input
+  
+   UNION ALL  -- important to remove duplicates!
+
+   SELECT
+    ARRAY_APPEND(output_table.combo, input.product),
+    input.product,
+    product_counter + 1
+   FROM output_table
+   INNER JOIN input ON input.product > output_table.product
+   WHERE output_table.product_counter <= 2
+   )
+SELECT * from output_table
+WHERE product_counter = 3;
+
+-- step 2
+WITH cte_transaction_products AS (
+  SELECT
+    txn_id,
+    ARRAY_AGG(prod_id::TEXT ORDER BY prod_id) AS products
+  FROM balanced_tree.sales
+  GROUP BY txn_id
+),
+-- step 3
+cte_combo_transactions AS (
+  SELECT
+    txn_id,
+    combo,
+    products
+  FROM cte_transaction_products
+  CROSS JOIN temp_product_combos  -- previously created temp table above!
+  WHERE combo <@ products  -- combo is contained in products
+),
+-- step 4
+cte_ranked_combos AS (
+  SELECT
+    combo,
+    COUNT(DISTINCT txn_id) AS transaction_count,
+    RANK() OVER (ORDER BY COUNT(DISTINCT txn_id) DESC) AS combo_rank,
+    ROW_NUMBER() OVER (ORDER BY COUNT(DISTINCT txn_id) DESC) AS combo_id
+  FROM cte_combo_transactions
+  GROUP BY combo
+),
+-- step 5
+cte_most_common_combo_product_transactions AS (
+  SELECT
+    cte_combo_transactions.txn_id,
+    cte_ranked_combos.combo_id,
+    UNNEST(cte_ranked_combos.combo) AS prod_id
+  FROM cte_combo_transactions
+  INNER JOIN cte_ranked_combos
+    ON cte_combo_transactions.combo = cte_ranked_combos.combo
+  WHERE cte_ranked_combos.combo_rank = 1
+)
+-- step 6
+SELECT
+  product_details.product_id,
+  product_details.product_name,
+  COUNT(DISTINCT sales.txn_id) AS combo_transaction_count,
+  SUM(sales.qty) AS quantity,
+  SUM(sales.qty * sales.price) AS revenue,
+  ROUND(
+    SUM(sales.qty * sales.price * sales.discount / 100),
+    2
+  ) AS discount,
+  ROUND(
+    SUM(sales.qty * sales.price * (1 - sales.discount / 100)),
+    2
+  ) AS net_revenue
+FROM balanced_tree.sales
+INNER JOIN cte_most_common_combo_product_transactions AS top_combo
+  ON sales.txn_id = top_combo.txn_id
+  AND sales.prod_id = top_combo.prod_id
+INNER JOIN balanced_tree.product_details
+  ON sales.prod_id = product_details.product_id
+GROUP BY product_details.product_id, product_details.product_name;
+
+
+------------------------- END OF SECTION C -------------------------
+
+
+

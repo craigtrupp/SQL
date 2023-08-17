@@ -62,8 +62,9 @@
 <br>
 
 * **[SQL Challenges](/Sql_Challenges)**
-    - Please see the Section's Individual Markdown file for more. Each image below will link to the Case Study for each Challenge
+    - Each image below will link to the Case Study for each Challenge 
     - **[Section Markdown](/Sql_Challenges/SqlChallenges.md)**
+        - Review of the 8 Week Challenge 
 
 <p align="center">
     <a href="/Sql_Challenges/1_DannyDiner/Danny_Diners_Challenge.md">

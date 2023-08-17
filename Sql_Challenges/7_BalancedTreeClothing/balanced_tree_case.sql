@@ -241,6 +241,10 @@ GROUP BY member;
 
 ------------------------- END OF SECTION B -------------------------
 
+
+
+-------------------- `C. Product Analysis`---------------------
+
 -- 1 What are the top 3 products by total revenue before discount?
 -- We'll take a peek at the first five
 SELECT 
@@ -588,4 +592,38 @@ GROUP BY product_details.product_id, product_details.product_name;
 ------------------------- END OF SECTION C -------------------------
 
 
+-------------------- `D. Bonus - Table Deconstruction & Geneartion`---------------------
 
+-- Use a single SQL query to transform the product_hierarchy and 
+-- product_prices datasets to the product_details table.
+
+WITH hierarchy_to_product AS (
+SELECT
+  ph.id AS base_id,
+  ph.level_text AS base_text,
+  ph_lj1.id AS segment_id,
+  ph_lj1.parent_id AS category_id,
+  ph_lj1.level_text AS segment_text,
+  ph_lj2.level_text AS category_text
+FROM balanced_tree.product_hierarchy AS ph 
+LEFT JOIN balanced_tree.product_hierarchy AS ph_lj1
+  ON ph.parent_id = ph_lj1.id
+LEFT JOIN balanced_tree.product_hierarchy AS ph_lj2
+  ON ph_lj1.parent_id = ph_lj2.id 
+  -- annoying we can't use the alias but we're matching our category_id from the first left (category_id) 
+  -- just to the base_id of itself which is 1 or 2 and getting the text
+)
+SELECT
+  p.product_id,
+  p.price,
+  CONCAT(htp.base_text, ' ', htp.segment_text, ' - ', htp.category_text) AS product_name,
+  htp.category_id,
+  htp.segment_id,
+  htp.base_id AS style_id,
+  htp.category_text AS category_name,
+  htp.segment_text AS segment_name,
+  htp.base_text AS style_name
+FROM balanced_tree.product_prices AS p 
+INNER JOIN hierarchy_to_product AS htp 
+  ON p.id = htp.base_id
+ORDER BY p.id;

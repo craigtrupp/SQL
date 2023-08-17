@@ -95,7 +95,7 @@ The sequence_number is used to order the events within each visit.
 
 ### **Case Study Questions**
 
-#### `A. Enterprise Relationship Diagram`
+#### `A. Enterprise Relationship Diagram` & `DDL Db Diagram`
 ```sql
 Table "clique_bait"."campaign_identifier" {
   campaign_id INTEGER [primary key]

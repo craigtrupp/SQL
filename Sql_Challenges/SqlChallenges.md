@@ -72,7 +72,6 @@ Following completing the educational material for `Serious SQL`, the course offe
     - Finer Data Points and Clarifying Text Representation
     - Conditional Type setting from sql function returns on uncleansed data
 * The Data Exploration looks to use the date values and is most resourceful through our ability to partition and generate summary statistics by partitioned values like **calendar_year** over different demographics
-* https://github.com/craigtrupp/SrsSQL/blob/main/Sql_Challenges/5_DataMart/DataMart_CS.md
 * [Data Mart Challenge](/Sql_Challenges/5_DataMart/DataMart_CS.md)
 
 
@@ -83,7 +82,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 * This is a heavily involved case study and start with a request to create an `ERD` based on provided data in a schema. The ERD can be found here and is also available directly through DB Diagram
     - https://github.com/craigtrupp/SrsSQL/blob/main/Sql_Challenges/6_CliqueBait/images/clique_bait_schema.png
     - https://dbdiagram.io/d/64c8195a02bd1c4a5e01a62c
-    - Within the markdown file below, the `DDL` language can also be seen for the table relationship definition as well as potential Indexes for improved performance
+    - Within the challenge markdown file, the `DDL` language can also be seen (Section A) for the table relationship definition as well as potential Indexes for improved performance
 * The challenge mocks tasks involving data from `user`, `events`, `products` and `campaign analysis` tables for user events
 * **Digital Analysis** involves questions including
     - User Visits by Event Types 
@@ -104,9 +103,19 @@ Following completing the educational material for `Serious SQL`, the course offe
 * Danny, the CEO of this trendy fashion company has asked you to assist the team’s merchandising teams analyse their 
     - sales performance and generate a basic financial report to share with the wider business.
 * Case Study Questions include the following sections
-    - High Level Sales Analysis
+    - High Level Sales Analysis 
+        * Total Product Counts
+        * Revenue pre/post discount
     - Transaction Analysis
+        * Unique Transactions
+        * Percentile Values for Revenue Per Transaction
+        * Percentage Split of Member vs Non-Members
     - Product Analysis
+        * Top Products by total revenue
+        * Quantity, Revenue, and Discount Totals by Segment
+        * Total Transaction Penetration Per Product
+        * Product Unique Combination Rankings 
+            - Recursive CTE
 * The last section challenges us to deconstruct two tables to generate a current product table representation 
 * [Balanced Tree Clothing Challenge](/Sql_Challenges/7_BalancedTreeClothing/BalancedTreeCStudy.md)
 

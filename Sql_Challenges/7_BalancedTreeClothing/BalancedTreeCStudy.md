@@ -1630,3 +1630,57 @@ GROUP BY product_details.product_id, product_details.product_name;
 |5d267b|White Tee Shirt - Mens|352|1007|40280|4929.00|40280.00|
 |9ec847|Grey Fashion Jacket - Womens|352|1062|57348|6830.00|57348.00|
 |c8d436|Teal Button Up Shirt - Mens|352|1054|10540|1192.00|10540.00|
+
+
+* Ok ... did a little digging and found something that makes a lot more sense for this question!
+  - Important note on the Joins here : https://learnsql.com/blog/sql-non-equi-joins-examples/
+  - The "<" symbol used in the non-equi join is for a elimination of duplicate pairs
+  - Note that the products join below is on itself to combine the 222 type of unique product combination for our 12 products 3 times (so in short the sales/product join is just joined on itself twice to get the 3 unique product combinations)
+```sql
+SET
+  SEARCH_PATH = balanced_tree;
+SELECT
+  product_1,
+  product_2,
+  product_3,
+  times_bought_together
+FROM
+  (
+    with products AS (
+      SELECT
+        txn_id,
+        product_name
+      FROM
+        sales AS s
+        JOIN product_details AS pd ON s.prod_id = pd.product_id
+    )
+    SELECT
+      p.product_name AS product_1,
+      p1.product_name AS product_2,
+      p2.product_name AS product_3,
+      COUNT(*) AS times_bought_together,
+      ROW_NUMBER() OVER(
+        ORDER BY
+          COUNT(*) DESC
+      ) AS rank
+    FROM
+      products AS p -- first CTE within subquery for product and sales join
+      JOIN products AS p1 ON p.txn_id = p1.txn_id
+        AND p.product_name != p1.product_name
+        AND p.product_name < p1.product_name -- Eliminating duplicate pairs (non-equi-join)
+      JOIN products AS p2 ON p.txn_id = p2.txn_id
+        AND p.product_name != p2.product_name
+        AND p1.product_name != p2.product_name
+        AND p.product_name < p2.product_name
+        AND p1.product_name < p2.product_name
+    GROUP BY
+      p.product_name,
+      p1.product_name,
+      p2.product_name
+  ) pp
+WHERE
+  rank = 1
+```
+|product_1|product_2|product_3|times_bought_together|
+|----|----|----|-----|
+|Grey Fashion Jacket - Womens|Teal Button Up Shirt - Mens|White Tee Shirt - Mens|352|

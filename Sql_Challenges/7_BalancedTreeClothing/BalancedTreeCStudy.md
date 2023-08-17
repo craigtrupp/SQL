@@ -15,7 +15,7 @@ For this case study there is a total of 4 datasets for this case study - however
 
 <br>
 
-**Product Details 📁**
+#### **Product Details 📁**
 * `balanced_tree.product_details` includes all information about the entire range that Balanced Clothing sells in their store.
 
 |product_id|price|product_name|category_id|segment_id|style_id|category_name|segment_name|style_name|
@@ -41,19 +41,32 @@ For this case study there is a total of 4 datasets for this case study - however
 
 <br>
 
-**Product Hierarcy & Product Price 📁**
+#### **Product Hierarcy & Product Price 📁**
 * These tables are used only for the bonus question where we will use them to recreate the **balanced_tree.product_details table**.
 
 
 - balanced_tree.product_hierarchy
 
 |id|parent_id|level_text|level_name|
-|-----|-----|-----|-----|
-|1|null|Womens|Category|
-|2|null|Mens|Category|
-|3|1|Jeans|Segment|
-|4|1|Jacket|Segment|
-|5|2|Shirt|Segment|
+|----|-----|----|-----|
+|1	|na	|Womens	          |Category|
+|2	|na	|Mens	            |Category|
+|3	|1	|Jeans	          |Segment|
+|4	|1	|Jacket	          |Segment|
+|5	|2	|Shirt	          |Segment|
+|6	|2	|Socks	          |Segment|
+|7	|3	|Navy Oversized	  |Style|
+|8	|3	|Black Straight	  |Style|
+|9	|3	|Cream Relaxed	  |Style|
+|10	|4	|Khaki Suit	      |Style|
+|11	|4	|Indigo Rain	    |Style|
+|12	|4	|Grey Fashion	    |Style|
+|13	|5	|White Tee	      |Style|
+|14	|5	|Teal Button Up	  |Style|
+|15	|5	|Blue Polo	      |Style|
+|16	|6	|Navy Solid	      |Style|
+|17	|6	|White Striped	  |Style|
+|18	|6	|Pink Fluro Polkadot	|Style|
 
 <br>
 
@@ -66,6 +79,7 @@ For this case study there is a total of 4 datasets for this case study - however
 |9|e31d39|10|
 |10|d5e9a6|23|
 |11|72f5d4|19|
+
 
 ---
 
@@ -1684,3 +1698,105 @@ WHERE
 |product_1|product_2|product_3|times_bought_together|
 |----|----|----|-----|
 |Grey Fashion Jacket - Womens|Teal Button Up Shirt - Mens|White Tee Shirt - Mens|352|
+
+
+---
+
+<br>
+
+### `D. Bonus Challenge`
+* Use a single SQL query to transform the product_hierarchy and product_prices datasets to the product_details table.
+  - Recall : [Product Hierarchy & Price](#product-hierarcy--product-price-📁) 
+    - This earlier section in the Data Definition Intro Section of this File wanted us to focus on the Style items (hierarchy id 7-18) ... this is ultimately what will recreate the product details table as we have 12 products!
+  - Product Details Outlook (Table we're recreating) : [Product Details](#product-details-📁)
+
+<br>
+
+```sql
+-- first join
+SELECT 
+  h.id AS style_id, 
+	h.level_text AS style_name, 
+  t1.id AS segment_id, 
+  t1.level_text AS segment_name,
+  t1.parent_id AS category_id
+FROM balanced_tree.product_hierarchy h
+LEFT JOIN balanced_tree.product_hierarchy t1 
+  ON h.parent_id=t1.id
+```
+
+* So Now with the table reference and assignment above, we can perform self-joins to pair the product_hierarchy with a category & segment
+```sql
+SELECT 
+  h.id AS style_id, 
+	h.level_text AS style_name, 
+  t1.id AS segment_id, 
+  t1.level_text AS segment_name,
+  t1.parent_id AS category_id,
+  t2.level_text AS category_name
+FROM balanced_tree.product_hierarchy h
+LEFT JOIN balanced_tree.product_hierarchy t1 
+  ON h.parent_id=t1.id
+LEFT JOIN balanced_tree.product_hierarchy t2 
+  ON t1.parent_id=t2.id
+```
+|style_id|style_name|segment_id|segment_name|category_id|category_name|
+|----|----|----|------|-----|-----|
+|1|Womens|null|null|null|null|
+|2|Mens|null|null|null|null|
+|3|Jeans|1|Womens|null|null|
+|4|Jacket|1|Womens|null|null|
+|5|Shirt|2|Mens|null|null|
+|6|Socks|2|Mens|null|null|
+|7|Navy Oversized|3|Jeans|1|Womens|
+|8|Black Straight|3|Jeans|1|Womens|
+|9|Cream Relaxed|3|Jeans|1|Womens|
+|10|Khaki Suit|4|Jacket|1|Womens|
+|11|Indigo Rain|4|Jacket|1|Womens|
+|12|Grey Fashion|4|Jacket|1|Womens|
+|13|White Tee|5|Shirt|2|Mens|
+|14|Teal Button Up|5|Shirt|2|Mens|
+|15|Blue Polo|5|Shirt|2|Mens|
+|16|Navy Solid|6|Socks|2|Mens|
+|17|White Striped|6|Socks|2|Mens|
+|18|Pink Fluro Polkadot|6|Socks|2|Mens|
+
+* This details the 18 rows we see in product hierarchy without the joins
+  - `First Left Join (t1)`
+    * h.parent_id (null .. then 1-6) t1.id (is the style id in base table) this is what gives us the null then 1-6 value in the segment_id section
+  - `Secont Left Join (t2)`
+    * t1.parent_id (category_id alias) when equal to t2.id (now this is just 1 to 2 so hence the null values for the category_name for non product items)
+
+```sql
+-- Can limit output now
+SELECT 
+  h.id AS style_id, 
+	h.level_text AS style_name, -- hierarch item text (Category, Segment or Product)
+  t1.id AS segment_id, 
+  t1.level_text AS segment_name,
+  t1.parent_id AS category_id,
+  t2.level_text AS category_name
+FROM balanced_tree.product_hierarchy h
+LEFT JOIN balanced_tree.product_hierarchy t1 
+  ON h.parent_id=t1.id -- base hierarchy parent_id null (men/female) to 1-6 for the segment lookup then product lookup to segment
+LEFT JOIN balanced_tree.product_hierarchy t2 
+  ON t1.parent_id=t2.id -- take the category_id in first join and join to product_hierarchy again to get the category_name for each 
+WHERE h.id BETWEEN 7 AND 18 -- limit base table to just the products now after the joins
+```
+|style_id|style_name|segment_id|segment_name|category_id|category_name|
+|-----|-----|-----|-----|-----|-----|
+|10|Khaki Suit|4|Jacket|1|Womens|
+|11|Indigo Rain|4|Jacket|1|Womens|
+|12|Grey Fashion|4|Jacket|1|Womens|
+|7|Navy Oversized|3|Jeans|1|Womens|
+|8|Black Straight|3|Jeans|1|Womens|
+|9|Cream Relaxed|3|Jeans|1|Womens|
+|16|Navy Solid|6|Socks|2|Mens|
+|17|White Striped|6|Socks|2|Mens|
+|18|Pink Fluro Polkadot|6|Socks|2|Mens|
+|13|White Tee|5|Shirt|2|Mens|
+|14|Teal Button Up|5|Shirt|2|Mens|
+|15|Blue Polo|5|Shirt|2|Mens|
+
+
+

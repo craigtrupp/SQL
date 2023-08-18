@@ -80,7 +80,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 ### `6 - Clique Bait` 🖱️
 * In this case study - you are required to support Danny’s vision and analyse his dataset and come up with creative solutions to calculate funnel fallout rates for the Clique Bait online store.
 * This is a heavily involved case study and start with a request to create an `ERD` based on provided data in a schema. The ERD can be found here and is also available directly through DB Diagram
-    - https://github.com/craigtrupp/SrsSQL/blob/main/Sql_Challenges/6_CliqueBait/images/clique_bait_schema.png
+    - [Clique Bait Schema - DB Diagram](/Sql_Challenges/6_CliqueBait/images/clique_bait_schema.png)
     - https://dbdiagram.io/d/64c8195a02bd1c4a5e01a62c
     - Within the challenge markdown file, the `DDL` language can also be seen (Section A) for the table relationship definition as well as potential Indexes for improved performance
 * The challenge mocks tasks involving data from `user`, `events`, `products` and `campaign analysis` tables for user events

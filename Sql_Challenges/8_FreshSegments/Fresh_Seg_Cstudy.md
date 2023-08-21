@@ -121,10 +121,65 @@ ALTER month_year TYPE DATE USING month_year::DATE;
 <br>
 
 **2.** What is count of records in the fresh_segments.interest_metrics for each month_year value sorted in chronological order (earliest to latest) with the null values appearing first?
+```sql
+SELECT
+  DATE_PART('Month', month_year) AS Month_Extract,
+  month_year AS month_column,
+  COUNT(*) AS monthly_record_count
+FROM fresh_segments.interest_metrics
+GROUP BY Month_Extract, month_column
+-- Can use or month_extract to group by months of different years
+-- for comparisson which a normal desc on the month_column wouldn't allow
+ORDER BY Month_Extract DESC;
+```
+|month_extract|month_column|monthly_record_count|
+|-----|------|------|
+|null|null|1194|
+|12|2018-12-01|995|
+|11|2018-11-01|928|
+|10|2018-10-01|857|
+|9|2018-09-01|780|
+|8|2018-08-01|767|
+|8|2019-08-01|1149|
+|7|2019-07-01|864|
+|7|2018-07-01|729|
+|6|2019-06-01|824|
+|5|2019-05-01|857|
+|4|2019-04-01|1099|
+|3|2019-03-01|1136|
+|2|2019-02-01|1121|
+|1|2019-01-01|973|
+
+<br>
 
 **3.** What do you think we should do with these null values in the fresh_segments.interest_metrics
+* As our metrics look heavily involved in regards to time (see counts above), we can likely remove the null values from our data as there is not contextual or referential ways to impute the values.
+* Looking at this in the context of the overall dataset and the business problem - it does not make too much sense to include these erroneous records into the analysis because we are going to be interested in the records only with a date specified!
 
 **4.** How many interest_id values exist in the fresh_segments.interest_metrics table but not in the fresh_segments.interest_map table? What about the other way around?
+```sql
+SELECT
+  COUNT(interest_metrics.interest_id) AS all_interest_metric,
+  COUNT(interest_map.id) AS all_interest_map,
+  COUNT(CASE WHEN interest_map.id IS NULL THEN interest_metrics.interest_id ELSE NULL END) AS not_in_map,
+  COUNT(CASE WHEN interest_metrics.interest_id IS NULL THEN interest_map.id ELSE NULL END)  AS not_in_metrics
+FROM fresh_segments.interest_metrics
+FULL OUTER JOIN fresh_segments.interest_map
+  ON interest_metrics.interest_id = interest_map.id;
+```
+|all_interest_metric|all_interest_map|not_in_map|not_in_metrics|
+|----|----|----|----|
+|1202|1209|0|7|
+
+```sql
+SELECT 
+ COUNT(DISTINCT interest_id) AS id_metrics_not_in_map
+FROM fresh_segments.interest_metrics
+WHERE interest_id NOT IN (SELECT DISTINCT id FROM fresh_segments.interest_map) AND interest_id IS NOT NULL;
+```
+|id_metrics_not_in_map|
+|----|
+|0|
 
 **5.** Summarise the id values in the fresh_segments.interest_map by its total record count in this table
 

@@ -69,7 +69,56 @@ Most questions can be answered using a single query however some questions are m
 <br>
 
 #### `A. Data Exploration and Cleansing` 🥾 :broom:
-**1.** Update the fresh_segments.interest_metrics table by modifying the month_year column to be a date data type with the start of the month
+**1.** Update the **fresh_segments.interest_metrics** table by modifying the **month_year** column to be a date data type with the start of the month
+```sql
+-- Check Types
+SELECT
+  column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'interest_metrics' AND table_schema = 'fresh_segments';
+```
+|column_name|data_type|
+|----|-----|
+|_month|text|
+|_year|text|
+|month_year|text|
+|interest_id|integer|
+|composition|double precision|
+|index_value|double precision|
+|ranking|integer|
+|percentile_ranking|double precision|
+
+```sql
+-- idea of the column mutation setting
+SELECT
+  TO_DATE(month_year, 'MM-YYYY'),
+  month_year
+FROM fresh_segments.interest_metrics
+LIMIT 5;
+
+-- Update 
+UPDATE fresh_segments.interest_metrics
+SET month_year = TO_DATE(month_year, 'MM-YYYY');
+
+-- DML Required to update Schema
+ALTER TABLE fresh_segments.interest_metrics
+ALTER month_year TYPE DATE USING month_year::DATE;
+
+-- Similarly call the information schema at the beginning of the question to validate the output and column being updated
+```
+|column_name|data_type|
+|-----|-----|
+|_month|text|
+|_year|text|
+|month_year|date|
+|interest_id|integer|
+|composition|double precision|
+|index_value|double precision|
+|ranking|integer|
+|percentile_ranking|double precision|
+
+
+<br>
 
 **2.** What is count of records in the fresh_segments.interest_metrics for each month_year value sorted in chronological order (earliest to latest) with the null values appearing first?
 

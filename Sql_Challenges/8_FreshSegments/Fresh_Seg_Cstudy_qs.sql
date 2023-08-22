@@ -77,3 +77,23 @@ SELECT
   ) 
 ) AS interest_metrics_id_count_unique
 
+-- 5 Summarise the id values in the fresh_segments.interest_map by its total record count in this table
+WITH interest_map_id_row_counts AS (
+SELECT
+  id,
+  COUNT(*) AS id_rows
+FROM fresh_segments.interest_map
+GROUP BY id
+),
+record_counts AS (
+SELECT
+  -- group by the counts from previous query
+  id_rows AS id_record_counts,
+  COUNT(*) AS total_ids_w_shared_recourd_count
+FROM interest_map_id_row_counts
+GROUP BY id_record_counts
+ORDER BY total_ids_w_shared_recourd_count DESC
+)
+SELECT * FROM record_counts;
+
+-- 6 (Explanation on Join type) - Review Markdown for Question

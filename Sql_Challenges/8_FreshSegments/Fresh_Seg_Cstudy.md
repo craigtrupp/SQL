@@ -61,14 +61,14 @@ The ranking and percentage_ranking relates to the order of index_value records i
 
 <br>
 
-### **Case Study Questions** :books:
+## **Case Study Questions** :books:
 The following questions can be considered key business questions that are required to be answered for the Fresh Segments team.
 
 Most questions can be answered using a single query however some questions are more open ended and require additional thought and not just a coded solution!
 
 <br>
 
-#### `A. Data Exploration and Cleansing` 🥾 :broom:
+### `A. Data Exploration and Cleansing` 🥾 :broom:
 **1.** Update the **fresh_segments.interest_metrics** table by modifying the **month_year** column to be a date data type with the start of the month
 ```sql
 -- Check Types
@@ -282,7 +282,184 @@ SELECT * FROM record_counts;
 <br>
 
 **6.** What sort of table join should we perform for our analysis and why? Check your logic by checking the rows where interest_id = 21246 in your joined output and include all columns from fresh_segments.interest_metrics and all columns from fresh_segments.interest_map except from the id column.
+```sql
+WITH cte_join AS (
+SELECT
+  -- Can grab all columns with the .* usage for a join table output 
+  interest_metrics.*,
+  interest_map.interest_name,
+  interest_map.interest_summary,
+  interest_map.created_at,
+  interest_map.last_modified
+FROM fresh_segments.interest_metrics
+INNER JOIN fresh_segments.interest_map
+  ON interest_metrics.interest_id = interest_map.id
+WHERE interest_metrics.month_year IS NOT NULL
+)
+SELECT * FROM cte_join
+WHERE interest_id = 21246;
+```
+
+Since we know all of the records from the `interest_details` table exists in the `interest_map` and there are no duplicate records on the `id` column in the `fresh_segments.interest_map` - we can use either LEFT JOIN or INNER JOIN for the analysis, however it depends on the order of the tables specified in the join.
+
+If we use the `fresh_segments.interest_metrics` as our base - we can use either join. However if we use the `fresh_segments.interest_map` table as the base, we must use INNER JOIN to remove all records in the metrics table which do not have a relevant interest_id value.
+* Meaning there are some id values in the map which if performing a left join would be included that do not have any associative metric rows
+
+Additionally - if you want to be as strict as possible - using an INNER JOIN is the best solution as you will also remove the missing `interest_id `values from the `fresh_segments.interest_metrics` table - but you will still need to deal with the single record which has a valid `interest_id` value.
+
+<br>
 
 **7.** Are there any records in your joined table where the month_year value is before the created_at value from the fresh_segments.interest_map table? Do you think these values are valid and why?
+```sql
+WITH cte_join AS (
+SELECT
+  -- Can grab all columns with the .* usage for a join table output 
+  interest_metrics.*,
+  interest_map.interest_name,
+  interest_map.interest_summary,
+  interest_map.created_at,
+  interest_map.last_modified
+FROM fresh_segments.interest_metrics
+INNER JOIN fresh_segments.interest_map
+  ON interest_metrics.interest_id = interest_map.id
+WHERE interest_metrics.month_year IS NOT NULL
+),
+month_year_before_created_at AS (
+SELECT 
+  *
+FROM cte_join
+WHERE month_year < created_at
+ORDER BY interest_id
+)
+SELECT COUNT(DISTINCT interest_id) FROM month_year_before_created_at;
+```
+|count|
+|---|
+|188|
+
+So there are definitely rows which show this characteristic - however, when we think about this from a deeper perspective - all of our metrics look like they are created monthly!
+
+Having the beginning of the month may just be a proxy for a summary version of all of our aggregated metrics throughout the month - so in this case we need to be wary that the `month_year` column might well be before our created_at column - **but it shouldn’t be from an earlier month!!**
+
+* Let’s confirm this by comparing the truncatated beginning of month for each created_at value with the month_year column again:
+
+```sql
+-- Quick view of operation output prior to 
+WITH cte_join AS (
+SELECT
+  -- Can grab all columns with the .* usage for a join table output 
+  interest_metrics.*,
+  interest_map.interest_name,
+  interest_map.interest_summary,
+  interest_map.created_at,
+  interest_map.last_modified
+FROM fresh_segments.interest_metrics
+INNER JOIN fresh_segments.interest_map
+  ON interest_metrics.interest_id = interest_map.id
+WHERE interest_metrics.month_year IS NOT NULL
+),
+month_year_before_created_at AS (
+SELECT 
+  interest_id,
+  month_year,
+  created_at
+FROM cte_join
+WHERE month_year < created_at
+ORDER BY interest_id
+)
+SELECT * FROM month_year_before_created_at LIMIT 5;
+```
+|interest_id|month_year|created_at|
+|----|----|----|
+|32701|2018-07-01|2018-07-06 14:35:03.000|
+|32702|2018-07-01|2018-07-06 14:35:04.000|
+|32703|2018-07-01|2018-07-06 14:35:04.000|
+|32704|2018-07-01|2018-07-06 14:35:04.000|
+|32705|2018-07-01|2018-07-06 14:35:04.000|
+
+```sql
+WITH cte_join AS (
+SELECT
+  -- Can grab all columns with the .* usage for a join table output 
+  interest_metrics.*,
+  interest_map.interest_name,
+  interest_map.interest_summary,
+  interest_map.created_at,
+  interest_map.last_modified
+FROM fresh_segments.interest_metrics
+INNER JOIN fresh_segments.interest_map
+  ON interest_metrics.interest_id = interest_map.id
+WHERE interest_metrics.month_year IS NOT NULL
+),
+month_year_before_created_at AS (
+SELECT 
+  interest_id,
+  month_year,
+  created_at
+FROM cte_join
+WHERE month_year < created_at
+ORDER BY interest_id
+)
+SELECT 
+  *,
+  DATE_TRUNC('month', created_at) AS created_at_month_trunc
+FROM month_year_before_created_at LIMIT 5;
+```
+|interest_id|month_year|created_at|created_at_month_trunc|
+|-----|----|----|----|
+|32701|2018-07-01|2018-07-06 14:35:03.000|2018-07-01|
+|32702|2018-07-01|2018-07-06 14:35:04.000|2018-07-01|
+|32703|2018-07-01|2018-07-06 14:35:04.000|2018-07-01|
+|32704|2018-07-01|2018-07-06 14:35:04.000|2018-07-01|
+|32705|2018-07-01|2018-07-06 14:35:04.000|2018-07-01|
+
+* We can now with the `date_trunc` return setting the `created_at` column to the beginning of the month (see fourth column above), check if the same condition **month_year < created_at_month_trunc** with the new output yields any rows
+
+```sql
+WITH cte_join AS (
+SELECT
+  -- Can grab all columns with the .* usage for a join table output 
+  interest_metrics.*,
+  interest_map.interest_name,
+  interest_map.interest_summary,
+  interest_map.created_at,
+  interest_map.last_modified
+FROM fresh_segments.interest_metrics
+INNER JOIN fresh_segments.interest_map
+  ON interest_metrics.interest_id = interest_map.id
+WHERE interest_metrics.month_year IS NOT NULL
+),
+month_year_before_created_at AS (
+SELECT 
+  interest_id,
+  month_year,
+  created_at
+FROM cte_join
+WHERE month_year < created_at
+ORDER BY interest_id
+),
+created_at_trunc AS (
+SELECT 
+  *,
+  DATE_TRUNC('month', created_at) AS created_at_month_trunc
+FROM month_year_before_created_at
+)
+SELECT 
+  COUNT(*) 
+FROM created_at_trunc 
+WHERE month_year < created_at_month_trunc
+```
+|count|
+|---|
+|0|
+
+* After setting the `created_at` column to the months' beginning date, we see there is now predating value from the `interest_metrics` table before the id declaration in `interest_map`
+    - We can see that there are no rows for this query - so all of our data points seem to be valid for our case study!
+
+<br><br>
+
+
+### `B. Interest Analysis` 💰 🥼
+
 
 

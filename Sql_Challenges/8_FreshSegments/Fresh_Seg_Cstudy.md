@@ -236,7 +236,50 @@ SELECT
 <br>
 
 **5.** Summarise the id values in the fresh_segments.interest_map by its total record count in this table
+```sql
+-- First part of query to look at all rows for each id 
+SELECT
+  id,
+  COUNT(*) AS id_rows
+FROM fresh_segments.interest_map
+GROUP BY id 
+ORDER BY id_rows DESC;
+```
+|id|id_rows|
+|--|-----|
+|10978|1|
+|7546|1|
+|51|1|
+|45524|1|
+|6062|1|
 
+* On first impression it doesn't look like **interest_map** has any duplicate id values in the table
+    - After grouping by the id and the rows found for each id, we can then pull another level of aggregation by grouping by the total_record aggregated value for each id to see how many ids share the same number of rows
+    - Keep in mind that the `id_rows` didn't show any id greater than one particular row so would assume that the record_count should be the same for all ids
+```sql
+WITH interest_map_id_row_counts AS (
+SELECT
+  id,
+  COUNT(*) AS id_rows
+FROM fresh_segments.interest_map
+GROUP BY id
+),
+record_counts AS (
+SELECT
+  -- group by the counts from previous query
+  id_rows AS id_record_counts,
+  COUNT(*) AS total_ids_w_shared_recourd_count
+FROM interest_map_id_row_counts
+GROUP BY id_record_counts
+ORDER BY total_ids_w_shared_recourd_count DESC
+)
+SELECT * FROM record_counts;
+```
+|id_record_counts|total_ids_w_shared_recourd_count|
+|---|----|
+|1|1209|
+
+<br>
 
 **6.** What sort of table join should we perform for our analysis and why? Check your logic by checking the rows where interest_id = 21246 in your joined output and include all columns from fresh_segments.interest_metrics and all columns from fresh_segments.interest_map except from the id column.
 

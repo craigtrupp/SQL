@@ -171,15 +171,69 @@ FULL OUTER JOIN fresh_segments.interest_map
 |----|----|----|----|
 |1202|1209|0|7|
 
+`Note`: We can also use an **anti-join** which is conceptually a little easier to understand here in terms of checking where there isn't any intersection on the shared id values 
+
+```sql
+-- Anti Join
+SELECT 
+(
+  SELECT
+    COUNT(id)
+  FROM fresh_segments.interest_map AS i_map 
+  WHERE NOT EXISTS (
+    SELECT
+      1
+    FROM fresh_segments.interest_metrics AS i_metrics 
+    WHERE i_metrics.interest_id = i_map.id
+  ) 
+) AS interest_map_id_count_unique,
+(
+  SELECT
+    COUNT(interest_id)
+  FROM fresh_segments.interest_metrics AS i_metrics
+  WHERE NOT EXISTS (
+    SELECT
+      1
+    FROM fresh_segments.interest_map AS i_map 
+    WHERE i_map.id = i_metrics.interest_id
+  ) 
+) AS interest_metrics_id_count_unique
+```
+|interest_map_id_count_unique|interest_metrics_id_count_unique|
+|----|----|
+|7|0|
+
+* What about the unique ID values though?
 ```sql
 SELECT 
- COUNT(DISTINCT interest_id) AS id_metrics_not_in_map
-FROM fresh_segments.interest_metrics
-WHERE interest_id NOT IN (SELECT DISTINCT id FROM fresh_segments.interest_map) AND interest_id IS NOT NULL;
+(
+  SELECT
+    ARRAY_AGG(DISTINCT i_map.id)
+  FROM fresh_segments.interest_map AS i_map 
+  WHERE NOT EXISTS (
+    SELECT
+      1
+    FROM fresh_segments.interest_metrics AS i_metrics 
+    WHERE i_metrics.interest_id = i_map.id
+  ) 
+) AS interest_map_id_count_unique,
+(
+  SELECT
+    ARRAY_AGG(DISTINCT i_metrics.interest_id)
+  FROM fresh_segments.interest_metrics AS i_metrics
+  WHERE NOT EXISTS (
+    SELECT
+      1
+    FROM fresh_segments.interest_map AS i_map 
+    WHERE i_map.id = i_metrics.interest_id
+  ) 
+) AS interest_metrics_id_count_unique
 ```
-|id_metrics_not_in_map|
-|----|
-|0|
+|interest_map_id_count_unique|interest_metrics_id_count_unique|
+|----|-----|
+|[ 19598, 35964, 40185, 40186, 42010, 42400, 47789 ]|[ null ]|
+
+<br>
 
 **5.** Summarise the id values in the fresh_segments.interest_map by its total record count in this table
 

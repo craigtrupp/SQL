@@ -460,6 +460,134 @@ WHERE month_year < created_at_month_trunc
 
 
 ### `B. Interest Analysis` 💰 🥼
+**1.** Which interests have been present in all month_year dates in our dataset?
+```sql
+-- What's our distinct month_year values and the count
+SELECT 
+  DISTINCT month_year
+FROM fresh_segments.interest_metrics
+ORDER BY month_year;
 
+-- Count distinct
+SELECT 
+  COUNT(DISTINCT month_year) 
+FROM 
+fresh_segments.interest_metrics 
+WHERE month_year IS NOT NULL;
+```
+|month_year|
+|---|
+|2018-07-01|
+|2018-08-01|
+|2018-09-01|
+|2018-10-01|
+|2018-11-01|
+|2018-12-01|
+|2019-01-01|
+|2019-02-01|
+|2019-03-01|
+|2019-04-01|
+|2019-05-01|
+|2019-06-01|
+|2019-07-01|
+|2019-08-01|
+|null|
 
+|count|
+|---|
+|14|
 
+* Alright, so my just first thought approach and allows us to use some things we haven't in awhile (Window partitions and moving sum)
+```sql
+SELECT
+  DISTINCT interest_id, month_year,
+  COUNT(*) AS interest_month_val_present
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL AND interest_id IS NOT NULL
+AND interest_id = 5
+GROUP BY interest_id, month_year
+ORDER BY month_year;
+```
+|interest_id|month_year|interest_month_val_present|
+|-----|-----|-----|
+|5|2018-07-01|1|
+|5|2018-08-01|1|
+|5|2018-09-01|1|
+
+* We used just a subset above but this particular interest_id had 14 rows which matches the total unique `month_year` values
+* Using the `DISTINCT` clause here let's us get each distinct combo of an interest_id and month_year, using the `COUNT` simply returns a default for if the interest_id and month_year exist as we'll be summing that parition next
+  - We could do a standard GROUP BY aggregate with the interest id but will just have a bit more fun here and practice
+
+```sql
+WITH interest_month_records AS (
+SELECT
+  DISTINCT interest_id, month_year,
+  COUNT(*) AS interest_month_val_present
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL AND interest_id IS NOT NULL
+AND interest_id = 5
+GROUP BY interest_id, month_year
+ORDER BY month_year
+),
+-- We could just do a standard GROUP BY aggregate count here too
+interest_id_total_months AS (
+SELECT
+  DISTINCT interest_id,
+  SUM(interest_month_val_present) OVER (
+    PARTITION BY interest_id
+  ) AS interest_id_total_months
+FROM interest_month_records
+)
+SELECT * FROM interest_id_total_months;
+```
+|interest_id|interest_id_total_months|
+|----|----|
+|5|14|
+
+* As we saw above, **14** is the unique count of non-null `month_year` column in total so this particular interest_id
+* With the information we could gather on all **interest_ids**, we could subsequently get the total unique id counts which was present over the 14 month period of data
+
+```sql
+WITH interest_month_records AS (
+SELECT
+  DISTINCT interest_id, month_year,
+  COUNT(*) AS interest_month_val_present
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL AND interest_id IS NOT NULL
+GROUP BY interest_id, month_year
+ORDER BY month_year
+),
+-- We could just do a standard GROUP BY aggregate count here too
+interest_id_total_months AS (
+SELECT
+  DISTINCT interest_id,
+  -- Each value here is just one, interesting to see the total still available after the DISTINCT call 
+  SUM(interest_month_val_present) OVER (
+    PARTITION BY interest_id
+  ) AS interest_id_total_months
+FROM interest_month_records
+)
+-- Now we can look at how many unique interest_ids were seen over the 14 month period
+SELECT 
+  interest_id_total_months AS total_months,
+  COUNT(interest_id) AS interest_id_counts
+FROM interest_id_total_months
+GROUP BY total_months
+ORDER BY total_months DESC;
+```
+|total_months|interest_id_counts|
+|----|-----|
+|14|480|
+|13|82|
+|12|65|
+|11|94|
+|10|86|
+|9|95|
+|8|67|
+|7|90|
+|6|33|
+|5|38|
+|4|32|
+|3|15|
+|2|12|
+|1|13|

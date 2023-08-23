@@ -97,3 +97,72 @@ ORDER BY total_ids_w_shared_recourd_count DESC
 SELECT * FROM record_counts;
 
 -- 6 (Explanation on Join type) - Review Markdown for Question
+
+-- 7 Are there any records in your joined table where the month_year value is before the 
+-- created_at value from the fresh_segments.interest_map table? 
+-- Do you think these values are valid and why? -- See Markdown file for further notest
+
+-- Confirmation of CTE steps to validate the `interest_map.created_at` field is equal to the initial date of metrics pulled for interest_id
+WITH cte_join AS (
+SELECT
+  -- Can grab all columns with the .* usage for a join table output 
+  interest_metrics.*,
+  interest_map.interest_name,
+  interest_map.interest_summary,
+  interest_map.created_at,
+  interest_map.last_modified
+FROM fresh_segments.interest_metrics
+INNER JOIN fresh_segments.interest_map
+  ON interest_metrics.interest_id = interest_map.id
+WHERE interest_metrics.month_year IS NOT NULL
+),
+month_year_before_created_at AS (
+SELECT 
+  interest_id,
+  month_year,
+  created_at
+FROM cte_join
+WHERE month_year < created_at
+ORDER BY interest_id
+),
+created_at_trunc AS (
+SELECT 
+  *,
+  DATE_TRUNC('month', created_at) AS created_at_month_trunc
+FROM month_year_before_created_at
+)
+SELECT 
+  COUNT(*) 
+FROM created_at_trunc 
+WHERE month_year < created_at_month_trunc
+
+
+
+------------- Section B : Interest Analysis -----------------
+-- 1 Which interests have been present in all month_year dates in our dataset?
+WITH interest_month_records AS (
+SELECT
+  DISTINCT interest_id, month_year,
+  COUNT(*) AS interest_month_val_present
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL AND interest_id IS NOT NULL
+GROUP BY interest_id, month_year
+ORDER BY month_year
+),
+-- We could just do a standard GROUP BY aggregate count here too
+interest_id_total_months AS (
+SELECT
+  DISTINCT interest_id,
+  -- Each value here is just one, interesting to see the total still available after the DISTINCT call 
+  SUM(interest_month_val_present) OVER (
+    PARTITION BY interest_id
+  ) AS interest_id_total_months
+FROM interest_month_records
+)
+-- Now we can look at how many unique interest_ids were seen over the 14 month period
+SELECT 
+  interest_id_total_months AS total_months,
+  COUNT(interest_id) AS interest_id_counts
+FROM interest_id_total_months
+GROUP BY total_months
+ORDER BY total_months DESC;

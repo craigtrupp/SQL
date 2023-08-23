@@ -655,3 +655,58 @@ FROM month_total_distinct_ids_count;
 |3|15|1177|97.92|
 |2|12|1189|98.92|
 |1|13|1202|100.00|
+
+<br>
+
+**3.** If we were to remove all **interest_id** values which are lower than the **total_months** value we found in the previous question - how many total data points would we be removing?
+* In reference to the value of interest `(which total_months value passes the 90% cumulative percentage value?)` from the question above
+  - By the fifth month total count we had accumulated more than 90% of the total unique interest_ids. This will be our starting point
+* Now the way I'm reading this as the value of 6 total months being the cutoff point and any interest_id within the 5 total months or lower counts from the table above would have all their rows removed.
+* So we can use the similar base query here as we can simply multiply the total_months by the interest_id counts to get the rows to remove at each level and then cumulatively get that sum
+
+```sql
+WITH interest_month_records AS (
+SELECT
+  DISTINCT interest_id, month_year,
+  COUNT(*) AS interest_month_val_present
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL AND interest_id IS NOT NULL
+GROUP BY interest_id, month_year
+ORDER BY month_year
+),
+-- We could just do a standard GROUP BY aggregate count here too
+interest_id_total_months AS (
+SELECT
+  DISTINCT interest_id,
+  -- Each value here is just one, interesting to see the total within window still available after the DISTINCT call 
+  SUM(interest_month_val_present) OVER (
+    PARTITION BY interest_id
+  ) AS interest_id_total_months
+FROM interest_month_records
+),
+-- 1 more level for cumulative percentages
+month_total_distinct_ids_count AS (
+SELECT 
+  interest_id_total_months AS total_months,
+  COUNT(interest_id) AS interest_id_counts
+FROM interest_id_total_months
+WHERE interest_id_total_months <= 5 -- for question #3 
+GROUP BY total_months
+ORDER BY total_months DESC
+),
+rows_level_data_points_mock_remove AS (
+SELECT 
+  *,
+  total_months * interest_id_counts AS data_rows_removed_from_level,
+  SUM(total_months * interest_id_counts) OVER() AS total_rows_removed
+FROM month_total_distinct_ids_count
+)
+SELECT * FROM rows_level_data_points_mock_remove;
+```
+|total_months|interest_id_counts|data_rows_removed_from_level|total_rows_removed|
+|------|------|------|------|
+|5|38|190|400|
+|4|32|128|400|
+|3|15|45|400|
+|2|12|24|400|
+|1|13|13|400|

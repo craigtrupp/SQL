@@ -250,3 +250,26 @@ SELECT
 FROM month_total_distinct_ids_count
 )
 SELECT * FROM rows_level_data_points_mock_remove;
+
+
+-- 5 If we include all of our interests regardless of their counts - how many unique interests are there for each month?
+WITH months_data_joined AS (
+SELECT
+  metrics.month_year AS metric_mth_year,
+  map.interest_name AS map_name,
+  map.id AS map_id,
+  metrics.interest_id AS metrics_id
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metric_mth_year
+)
+SELECT
+  metric_mth_year,
+  COUNT(DISTINCT map_name) AS month_unique_interests
+FROM months_data_joined
+GROUP BY metric_mth_year
+ORDER BY month_unique_interests DESC;
+
+---------------------- End of Section B ----------------------

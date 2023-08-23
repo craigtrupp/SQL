@@ -710,3 +710,88 @@ SELECT * FROM rows_level_data_points_mock_remove;
 |3|15|45|400|
 |2|12|24|400|
 |1|13|13|400|
+
+<br>
+
+**4.** Does this decision make sense to remove these data points from a business perspective? Use an example where there are all 14 months present to a removed interest example for your arguments - think about what it means to have less months present from a segment perspective.
+
+- This is a business specific question where you have to think about what the data actually means - in our example any record which has less than 6 months worth of data might be an interest which was recently introduced, or it has missing data across multiple months (inconsistent data)
+
+* These are both solid reasons to exclude them from the analysis - however there should be a bit more analysis performed on these “rare” records just in case they actually provide some insight into the introduction of new interests at different points in time for the analysis.
+
+* As with nearly all things in data analytics and problem solving in general - there is no consensus on whether we should remove these records or not, especially without fully understanding the business problem in question!
+
+<br>
+
+**5.** If we include all of our interests regardless of their counts - how many unique interests are there for each month?
+
+* Ok so just to get an idea here, the two queries resulted in 729 (one was for the unique rows and group by aggregate count - was never more than 1 so each grouped by count)
+  - Meaning that every map_id/interst_id is only ever one row per month
+```sql
+SELECT
+  map.id AS map_id, map.interest_name AS name, metrics.interest_id AS metrics_id, metrics.month_year,
+  COUNT(*) AS unique_month_interests
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id
+WHERE metrics.month_year = '2018-07-01'
+GROUP BY map_id, name, metrics_id, metrics.month_year
+ORDER BY  unique_month_interests DESC;
+```
+|map_id|name|metrics_id|month_year|unique_month_interests|
+|----|----|-----|---|----|
+|10008|Japanese Luxury Car Enthusiasts|10008|2018-07-01|1|
+|50|Discount Big Box Shoppers|50|2018-07-01|1|
+|6230|Vegans|6230|2018-07-01|1|
+|5907|Budget Small Business Researchers|5907|2018-07-01|1|
+|46|Job Seekers|46|2018-07-01|1|
+
+```sql
+SELECT COUNT(*) FROM fresh_segments.interest_metrics WHERE month_year = '2018-07-01';
+```
+|count|
+|---|
+|729|
+
+* Now we can do just a straight forward check for names/ids for the unique interest per month
+```sql
+-- If we include all of our interests regardless of their counts - how many unique interests are there for each month?
+WITH months_data_joined AS (
+SELECT
+  metrics.month_year AS metric_mth_year,
+  map.interest_name AS map_name,
+  map.id AS map_id,
+  metrics.interest_id AS metrics_id
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metric_mth_year
+)
+SELECT
+  metric_mth_year,
+  COUNT(DISTINCT map_name) AS month_unique_interests
+FROM months_data_joined
+GROUP BY metric_mth_year
+ORDER BY month_unique_interests DESC;
+```
+|metric_mth_year|month_unique_interests|
+|----|----|
+|2019-08-01|1148|
+|2019-03-01|1135|
+|2019-02-01|1120|
+|2019-04-01|1098|
+|2018-12-01|995|
+|2019-01-01|973|
+|2018-11-01|928|
+|2019-07-01|864|
+|2019-05-01|857|
+|2018-10-01|857|
+|2019-06-01|824|
+|2018-09-01|780|
+|2018-08-01|767|
+|2018-07-01|729|
+
+<br><br>
+
+### `C. Segment Analysis` 

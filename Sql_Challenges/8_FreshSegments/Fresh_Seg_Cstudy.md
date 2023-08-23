@@ -591,3 +591,67 @@ ORDER BY total_months DESC;
 |3|15|
 |2|12|
 |1|13|
+
+<br>
+
+**2.** Using this same total_months measure - calculate the cumulative percentage of all records starting at 14 months - which total_months value passes the 90% cumulative percentage value?
+* We can use a rows window sum to get a running total and then use that value dividied by the total window value for the same column to get a running cumulative percentage
+```sql
+WITH interest_month_records AS (
+SELECT
+  DISTINCT interest_id, month_year,
+  COUNT(*) AS interest_month_val_present
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL AND interest_id IS NOT NULL
+GROUP BY interest_id, month_year
+ORDER BY month_year
+),
+-- We could just do a standard GROUP BY aggregate count here too
+interest_id_total_months AS (
+SELECT
+  DISTINCT interest_id,
+  -- Each value here is just one, interesting to see the total still available after the DISTINCT call 
+  SUM(interest_month_val_present) OVER (
+    PARTITION BY interest_id
+  ) AS interest_id_total_months
+FROM interest_month_records
+),
+-- 1 more level for cumulative percentages
+month_total_distinct_ids_count AS (
+SELECT 
+  interest_id_total_months AS total_months,
+  COUNT(interest_id) AS interest_id_counts
+FROM interest_id_total_months
+GROUP BY total_months
+ORDER BY total_months DESC
+)
+SELECT
+  *,
+  -- Already ordered in total_months order
+  SUM(interest_id_counts) OVER(
+    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+  ) AS running_total,
+  -- calculate the running_total as a cumulative percentage
+  ROUND(
+  100 * SUM(interest_id_counts) OVER(
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    )::NUMERIC / SUM(interest_id_counts) OVER()
+    , 2) AS cumulative_percentage
+FROM month_total_distinct_ids_count;
+```
+|total_months|interest_id_counts|running_total|cumulative_percentage|
+|-----|------|------|------|
+|14|480|480|39.93|
+|13|82|562|46.76|
+|12|65|627|52.16|
+|11|94|721|59.98|
+|10|86|807|67.14|
+|9|95|902|75.04|
+|8|67|969|80.62|
+|7|90|1059|88.10|
+|6|33|1092|90.85|
+|5|38|1130|94.01|
+|4|32|1162|96.67|
+|3|15|1177|97.92|
+|2|12|1189|98.92|
+|1|13|1202|100.00|

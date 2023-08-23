@@ -104,7 +104,7 @@
         height="160" width="160">
     </a>
 &nbsp; &nbsp;
-    <a href="/Sql_Challenges/4_DataBank/Data_Bank_CStudy.md">
+    <a href="/Sql_Challenges/8_FreshSegments/Fresh_Seg_Cstudy.md">
         <img alt="Fresh Segments" src="images/cs_8.png" 
         height="160" width="160">
     </a>

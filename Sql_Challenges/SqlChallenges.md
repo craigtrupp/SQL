@@ -124,7 +124,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 * The **Data Exploration Section** looks to use the date values and is most resourceful through our ability to partition and generate summary statistics by partitioned values like **calendar_year** over different demographics
 * **`Case Study Files`** 
     * [Data Mart Challenge](/Sql_Challenges/5_DataMart/DataMart_CS.md)
-    * [Data Mart Individual Queries](/Sql_Challenges/5_DataMart/DataMart_CS.sql)
+    * [Data Mart Individual Queries](/Sql_Challenges/5_DataMart/Data_Mart_CS.sql)
 
 
 <br>

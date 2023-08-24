@@ -1850,7 +1850,7 @@ ORDER BY p.id;
 
 <br>
 
-And that's all for this Case Study!!
+## `End of Case Study` 🏁
 
 
 

@@ -1439,3 +1439,7 @@ ORDER BY campaign_totals DESC;
 * The `Window` sum for the grouped by counts matches our unique campaign counts so our conditional cases have caught the `visit_start_time` and assigned a found campaign!
 * We're done!!!
 * It would likely be a view with some other details for future evaluation
+
+<br>
+
+## `End of Case Study` 🏁

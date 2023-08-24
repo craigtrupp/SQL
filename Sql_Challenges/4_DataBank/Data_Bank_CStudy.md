@@ -773,3 +773,7 @@ FROM cte_calcs
 |positive_first_month_balance_percentage|negative_first_month_balance_percentage|increase_greater_than_5_percentage|decrease_greater_than_5_percentage|positive_to_negative_percentage|
 |-----|----|----|----|-----|
 |69|31|13|1|23|
+
+<br>
+
+## `End of Case Study` 🏁

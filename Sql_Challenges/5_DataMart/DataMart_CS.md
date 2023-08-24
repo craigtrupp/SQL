@@ -1043,3 +1043,7 @@ FROM preceding_subsequent_week_sum;
 |Existing|10168877642|10117367239|20286244881|Higher Sales in Preceding Period|51510403|0.509%|
 |Guest|7630353739|7595150744|15225504483|Higher Sales in Preceding Period|35202995|0.463%|
 |New|2606990480|2624894383|5231884863|Higher Sales in Subsequent Weeks|17903903|0.687%|
+
+<br>
+
+## `End of Case Study` 🏁

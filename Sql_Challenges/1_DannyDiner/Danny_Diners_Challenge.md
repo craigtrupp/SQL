@@ -912,3 +912,5 @@ ORDER BY customer_id, order_date, product_name;
 
 <br>
 
+## `End of Case Study` 🏁
+

@@ -69,6 +69,7 @@ Following completing the educational material for `Serious SQL`, the course offe
         - Upgrades from pro monthly to pro annual are paid at the end of the current billing period and also starts at the end of the month period
         - once a customer churn, they will no longer make payments
 * [Foodie Fi Subscription Challenge](/Sql_Challenges/3_Foodie_Fi/Foddie_Fi.md)
+* [Foodie Fi Individual Queries](/Sql_Challenges/3_Foodie_Fi/Foodie_Fi_queries.sql)
 
 <br>
 

@@ -70,7 +70,7 @@ LIMIT 5;
 
 <br>
 
-### Case Study Questions
+### **Case Study Questions**
 This case study is split into an initial data understanding question before diving straight into data analysis questions before finishing with 1 single extension challenge.
 
 `A. Customer Journey`
@@ -1080,3 +1080,10 @@ FROM annual_pay_adjustments;
 SELECT * FROM payments_2020;
 ```
 ![Pay Adjustments](Images/pay_adjust_cte.png)
+
+
+<br>
+
+## `End of Case Study` 🏁
+
+--- 

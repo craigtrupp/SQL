@@ -1872,3 +1872,7 @@ FROM cte_adjusted_runner_orders;
 |leftover_revenue|
 |----|
 |94.44|
+
+<br>
+
+## `End of Case Study` 🏁

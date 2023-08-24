@@ -21,6 +21,17 @@ Following completing the educational material for `Serious SQL`, the course offe
 
 <br>
 
+## **Individual Challenges** 
+* A quick `Note` on the challenges and referenced **Case Study Files** below per section
+* Each section/challenge below contains a root **markdown file** containing the following details
+    - Challenge Introduction
+    - Available Data 
+    - Case Study Questions By Section
+    - My SQL Path to the Solution for the Question 
+* There is also a sole based SQL file for each Case Study that contains each section's final query for the solution to that particular section's question. 
+
+<br>
+
 ### `1 - Danny's Diner` 🥡
 * Danny wants to use the data to answer a few simple questions about his customers, especially about their visiting patterns, how much money they’ve spent and also which menu items are their favourite. 
 * Having this deeper connection with his customers will help him deliver a better and more personalised experience for his loyal customers. 
@@ -44,6 +55,19 @@ Following completing the educational material for `Serious SQL`, the course offe
 * Danny created Foodie-Fi with a data driven mindset and wanted to ensure all future investment decisions and new features were decided using data. This case study focuses on using subscription style digital data to answer important business questions.
 * While this is a smaller data schema and relational model, the presence of SCD (slowly changing dimensions) offers unique challenges to aggregate or finding leading/trailing data for our customer data
 * This challenge also introduces **distribution** functions used to bin customers and their event history for clearer insights on customer behavior
+* Sections 
+    - Customer Journey
+        - Join Path for Data Access
+    - Data Analysis Questions
+        - Customer Plan Distribution
+        - Time Distribution for Customers and Usage of different Subscription Levels
+        - General Customer Subscription Upgrades and Downgrades Counts/Percentages
+        - Customer Churn Data
+    - Payment Table Creation - New Table w/following requirements
+        - Montly payments always occur on the same day of the month as the original start_date
+        - Upgrades from basic to monthly (or pror plans) are reduced by the current paid amount in that month and start immediately
+        - Upgrades from pro monthly to pro annual are paid at the end of the current billing period and also starts at the end of the month period
+        - once a customer churn, they will no longer make payments
 * [Foodie Fi Subscription Challenge](/Sql_Challenges/3_Foodie_Fi/Foddie_Fi.md)
 
 <br>
@@ -57,7 +81,9 @@ Following completing the educational material for `Serious SQL`, the course offe
     - Threshold consideration for comparisons of balances in adjacent months
 * Such approaches like `leading/lag window functions`, `generated series` for interval mocking, `conditional aggregate` functions for transaction determinstic values helped in the preparation of the customer & transaction data requested in the case study.
     - Window functions also included partitioned sections for customer balances and determining of activity against lagging balances
-* [Data Bank Customer Challenge](/Sql_Challenges/4_DataBank/Data_Bank_CStudy.md)
+* **`Case Study Files`** 
+    * [Data Bank Customer Challenge](/Sql_Challenges/4_DataBank/Data_Bank_CStudy.md)
+    * [Data Bank Individual Queries](/Sql_Challenges/4_DataBank/Data_Bank_CStudy_sql.sql)
 
 <br>
 
@@ -72,7 +98,9 @@ Following completing the educational material for `Serious SQL`, the course offe
     - Finer Data Points and Clarifying Text Representation
     - Conditional Type setting from sql function returns on uncleansed data
 * The Data Exploration looks to use the date values and is most resourceful through our ability to partition and generate summary statistics by partitioned values like **calendar_year** over different demographics
-* [Data Mart Challenge](/Sql_Challenges/5_DataMart/DataMart_CS.md)
+* **`Case Study Files`** 
+    * [Data Mart Challenge](/Sql_Challenges/5_DataMart/DataMart_CS.md)
+    * [Data Mart Individual Queries](/Sql_Challenges/5_DataMart/DataMart_CS.sql)
 
 
 <br>
@@ -95,7 +123,9 @@ Following completing the educational material for `Serious SQL`, the course offe
 * **Campaign Analysis**
     - Temp Table Creation via chained CTE information gathering
     - Conditional Case Setting and Subquerying for Campaign designation with respect to ad impressions and clicks per unique user visit and chaining to products included in user site visit
-* [Clique Bait Challenge](/Sql_Challenges/6_CliqueBait/CBAttenCapturing.md)
+* **`Case Study Files`** 
+    * [Clique Bait Challenge](/Sql_Challenges/6_CliqueBait/CBAttenCapturing.md)
+    * [Clique Bait Individual Queries](/Sql_Challenges/6_CliqueBait/CBAttCap_qrs.sql)
 
 <br>
 
@@ -117,8 +147,10 @@ Following completing the educational material for `Serious SQL`, the course offe
         * Product Unique Combination Rankings 
             - Recursive CTE
     - Table Reconstruction from Series of Self Joins and Foreing Key Table
-        *  The last section challenges us to deconstruct two tables to generate a current product table representation 
-* [Balanced Tree Clothing Challenge](/Sql_Challenges/7_BalancedTreeClothing/BalancedTreeCStudy.md)
+        *  The last section challenges us to deconstruct two tables to generate a current product table representation
+* **`Case Study Files`** 
+    * [Balanced Tree Clothing Challenge](/Sql_Challenges/7_BalancedTreeClothing/BalancedTreeCStudy.md)
+    * [Balanced Tree Individual Queries](/Sql_Challenges/7_BalancedTreeClothing/balanced_tree_case.sql)
 
 <br>
 
@@ -140,7 +172,9 @@ Following completing the educational material for `Serious SQL`, the course offe
         - Possible Data Point Omission through cumulative percentage of uniuqe interstID key contributing data points and filtering of less seen observations
     * Segment Analysis
     * Index Analysis 
-* [Fresh Segments Challenge](/8_FreshSegments/Fresh_Seg_Cstudy.md)
+* **`Case Study Files`**
+    * [Fresh Segments Challenge](/Sql_Challenges/8_FreshSegments/Fresh_Seg_Cstudy.md)
+    * [Fresh Segments Individual Queries](/Sql_Challenges/8_FreshSegments/Fresh_Seg_Cstudy_qs.sql)
 
 
 

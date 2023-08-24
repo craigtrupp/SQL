@@ -219,7 +219,6 @@ SELECT
       COUNT(DISTINCT customer_id)::NUMERIC
   , 1) AS percentage -- Recall floor division (cast one value as numeric)
 FROM foodie_fi.subscriptions;
-
 ```
 |churn_customers|percentage|
 |---|---|
@@ -805,7 +804,7 @@ LIMIT 10;
 |4|4|2020-04-21|1|
 |5|0|2020-08-03|null|
 
-* We just need to know the `plan_id` (pro_monthly = 2, basic_monthly = 1), so we want to 
+* We just need to know the `plan_id` (pro_monthly = 2, basic_monthly = 1)
 
 ```sql
 -- How many customers downgraded from a pro monthly to a basic monthly plan in 2020? - Here we want to order by 

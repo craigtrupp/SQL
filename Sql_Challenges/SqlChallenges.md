@@ -102,7 +102,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 ### `7 - Balanced Tree Clothing` 🌳
 * Danny, the CEO of this trendy fashion company has asked you to assist the team’s merchandising teams analyse their 
     - sales performance and generate a basic financial report to share with the wider business.
-* Case Study Questions include the following sections
+* **Case Study Questions** include the following sections
     - High Level Sales Analysis 
         * Total Product Counts
         * Revenue pre/post discount
@@ -116,9 +116,31 @@ Following completing the educational material for `Serious SQL`, the course offe
         * Total Transaction Penetration Per Product
         * Product Unique Combination Rankings 
             - Recursive CTE
-* The last section challenges us to deconstruct two tables to generate a current product table representation 
+    - Table Reconstruction from Series of Self Joins and Foreing Key Table
+        *  The last section challenges us to deconstruct two tables to generate a current product table representation 
 * [Balanced Tree Clothing Challenge](/Sql_Challenges/7_BalancedTreeClothing/BalancedTreeCStudy.md)
 
+<br>
+
+### `8 - Fresh Segments` 🥭
+* Danny created **Fresh Segments**, a digital marketing agency that helps other businesses analyse trends in online ad click behaviour for their unique customer base.
+* Clients share their customer lists with the Fresh Segments team who then aggregate interest metrics and generate a single dataset worth of metrics for further analysis.
+    - In particular - the composition and rankings for different interests are provided for each client showing the proportion of their customer list who interacted with online assets related to each interest for each month.
+* Danny has asked for your assistance to analyse aggregated metrics for an example client and provide some high level insights about the customer list and their interests.
+* **Case Study Questions** : The following questions can be considered key business questions that are required to be answered for the Fresh Segments team.
+    * Data Exploration & Cleansing
+        - Table Alterations, Column Mutations
+        - Shared Index Analysis for Interest_ID Mapping
+        - Null Handling Scenarios & Table Join Considerations
+        - Data Creation / Index Setting prior to Data Collection 
+    * Interest Analysis
+        - Distributed Data and Available Data from Unique InterestIDs 
+        - Cumulative Percentage of Unique InterestIDs available data makeup
+        - Unique InterestIDs per month
+        - Possible Data Point Omission through cumulative percentage of uniuqe interstID key contributing data points and filtering of less seen observations
+    * Segment Analysis
+    * Index Analysis 
+* [Fresh Segments Challenge](/8_FreshSegments/Fresh_Seg_Cstudy.md)
 
 
 

@@ -164,7 +164,7 @@ Before you start writing your SQL queries however - you might want to investigat
 
 <br>
 
-#### `A - Pizza Metrics` 
+### **`A - Pizza Metrics`**
 
 
 **1.** How many pizzas were ordered?
@@ -626,7 +626,7 @@ SELECT pizza_count FROM cte_ranked_orders WHERE count_rank = 1;
 
 <br>
 
-#### `B - Runner and Customer Experience`
+### **`B - Runner and Customer Experience`**
 
 **1.** How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)
 ```sql
@@ -954,7 +954,7 @@ ORDER BY runner_id;
 
 <br>
 
-#### `C. Ingredient Optimization`
+#### **`C. Ingredient Optimization`**
 
 **1.** What are the standard ingredients for each pizza?
 ```sql
@@ -1365,7 +1365,7 @@ ORDER BY topping_count DESC;
 
 <br>
 
-### `Pricing and Ratings`
+### **`D. Pricing and Ratings`**
 **1.** If a Meat Lovers pizza costs $12 and Vegetarian costs $10 and there were no charges for changes - how much money has Pizza Runner made so far if there are no delivery fees?
 ```sql
 WITH pizza_names AS (

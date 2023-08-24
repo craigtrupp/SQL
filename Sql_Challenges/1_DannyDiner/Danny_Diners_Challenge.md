@@ -81,7 +81,7 @@ LIMIT 5;
 ### **Case Study Questions**
 Each of the following case study questions can be answered using a single SQL statement:
 
-1. What is the total amount each customer spent at the restaurant?
+**1.** What is the total amount each customer spent at the restaurant?
 ```sql
 -- Multiple Window Functions here to get an idea of daily/total value
 SELECT
@@ -135,7 +135,7 @@ ORDER BY customer_total_sum DESC;
 
 <br>
 
-2. How many days has each customer visited the restaurant?
+**2.** How many days has each customer visited the restaurant?
 ```sql
 -- How many days has each customer visited the restaurant?
 SELECT
@@ -153,7 +153,7 @@ ORDER BY customer_total_visits DESC;
 
 <br>
 
-3. What was the first item from the menu purchased by each customer?
+**3.** What was the first item from the menu purchased by each customer?
 ```sql
 -- What was the first item from the menu purchased by each customer?
 -- DENSE RANK for any products purchased on same day (ranked the same)
@@ -185,7 +185,7 @@ WHERE item_purchase_rank_by_date = 1;
 
 <br>
 
-4. What is the most purchased item on the menu and how many times was it purchased by all customers?
+**4.** What is the most purchased item on the menu and how many times was it purchased by all customers?
 ```sql
 -- What is the most purchased item on the menu and how many times was it purchased by all customers?
 WITH most_purchased_item AS (
@@ -241,7 +241,7 @@ ORDER BY total_product_purchases DESC;
 
 <br>
 
-5. Which item was the most popular for each customer?
+**5.** Which item was the most popular for each customer?
 ```sql
 SELECT
   s.customer_id,
@@ -336,7 +336,7 @@ WHERE item_rank = 1;
 
 <br>
 
-6. Which item was purchased first by the customer after they became a member?
+**6.** Which item was purchased first by the customer after they became a member?
 ```sql
 SELECT
   s.customer_id,
@@ -431,7 +431,7 @@ WHERE order__rank = 1
 
 <br>
 
-7. Which item was purchased just before the customer became a member?
+**7.** Which item was purchased just before the customer became a member?
 ```sql
 -- Which item was purchased just before the customer became a member
 WITH pre_member_purchase_rankings AS (
@@ -466,7 +466,7 @@ WHERE pre_member_purchase_ranking = 1;
 
 <br>
 
-8. What is the total items and amount spent for each member before they became a member?
+**8.** What is the total items and amount spent for each member before they became a member?
 ```sql
 SELECT
   customer_id,
@@ -513,7 +513,7 @@ ORDER BY customer_id;
 
 <br>
 
-9. If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
+**9.** If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
 ```sql
 WITH sales_purchase_points AS (
 SELECT 
@@ -605,7 +605,7 @@ ORDER BY points DESC;
 
 <br>
 
-10. In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi - how many points do customer A and B have at the end of January?
+**10.** In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi - how many points do customer A and B have at the end of January?
 
 ```sql
 -- In the first week after a customer joins the program (including their join date) they earn 2x points on all items,
@@ -718,7 +718,7 @@ ORDER BY member_points_end_jan DESC;
 
 <br>
 
-#### `Bonus Questions`
+### **`Bonus Questions : Join All the Things`**
 1. Recreate the following table output using the available data:
 
 |customer_id|order_date|product_name|price|member|

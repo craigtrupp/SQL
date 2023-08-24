@@ -35,18 +35,40 @@ Following completing the educational material for `Serious SQL`, the course offe
 ### `1 - Danny's Diner` 🥡
 * Danny wants to use the data to answer a few simple questions about his customers, especially about their visiting patterns, how much money they’ve spent and also which menu items are their favourite. 
 * Having this deeper connection with his customers will help him deliver a better and more personalised experience for his loyal customers. 
-* The Dataset (Schema), ERD (Entity Relationship Diagram), and Case Study Questions can be found here : [Danny's Diner Challenge](/Sql_Challenges/1_DannyDiner/Danny_Diners_Challenge.md)
+* **Case Study Items**
+    - Customer, Item & Loyalty Rewards Details
+        * Customer Data : Total Spend, Most Popular Item, Purchase History
+        * Item Data : Greatest/Least Purchased Item, Item Purchase by Member Status, 
+        * Reward Details : Customer Reward Points by Item Multiplier, Customer Points by Promotion time points multiplier
+* **`Case Study Files`** 
+    * [Danny's Diner Challenge](/Sql_Challenges/1_DannyDiner/Danny_Diners_Challenge.md)
+    * [Danny's Diner Queries](/Sql_Challenges/1_DannyDiner/Dannys_Dinner_queries.sql)
+
 
 <br>
 
 ### `2 - Pizza Runner` 🍕
 * This Case Study looks to analyze various different sections in Danny's Pizza business
+* **Case Study Sections**
     - Pizza Metrics
+        * Unique Customer Orders, Total Pizzas Ordered, Successful Orders Per Runner
+        * Each Type of Pizza Per Successful Delivery, Max Pizza Delivered in Order
+        * Pizzas Delivered w/Exclusions & w/Extras, Delivered Pizzas w/at least 1 change
+        * Order Aggregates over time : Volume of Orders for each day of the week, pizzas ordered for each hour
     - Runner & Customer Expereince
+        * Average distance travelled per run and by each customer, longest & shortest delivery times, average spped for each runner for delivery
+        * Successful delivery percentage for each runner, average time in minutes for each runner to arrive to pickup order, Runner signups
     - Ingredient Optimization
+        * Standard ingredients per pizza, Most commonly added extras or common exclusions
+        * Dynamic Order Item Generation for pizza w/toppings and any exclusions and/or extras
+            - Multiple Table joins and dynamic/conditional setting of eventual concatenated values
     - Pricing and Ratings
+        * Price/Extra Change Impact on Revenue, General Revenue w/o delivery fees, Runner cost on revenue by runner rate per kilometer traveled
+        * Addition of Ratings System, Table Generation including rating and customer/order details
 * This challenge includes several examples of multiple joins, conditional `SUM CASES`, temp table creation, regex pattern and table creation as well as data cleanup for incomplete or incosistent data values across the database schema
-* [Pizza Runner Challenge](/Sql_Challenges/2_PizzaRunner/Pizza_Runner.md)
+* **`Case Study Files`** 
+    * [Pizza Runner Challenge](/Sql_Challenges/2_PizzaRunner/Pizza_Runner.md)
+    * [Pizza Runner Queries](/Sql_Challenges/2_PizzaRunner/Pizza_Runner_queries.sql)
 
 <br>
 
@@ -55,7 +77,7 @@ Following completing the educational material for `Serious SQL`, the course offe
 * Danny created Foodie-Fi with a data driven mindset and wanted to ensure all future investment decisions and new features were decided using data. This case study focuses on using subscription style digital data to answer important business questions.
 * While this is a smaller data schema and relational model, the presence of SCD (slowly changing dimensions) offers unique challenges to aggregate or finding leading/trailing data for our customer data
 * This challenge also introduces **distribution** functions used to bin customers and their event history for clearer insights on customer behavior
-* Sections 
+* **Case Study Sections**
     - Customer Journey
         - Join Path for Data Access
     - Data Analysis Questions
@@ -68,14 +90,15 @@ Following completing the educational material for `Serious SQL`, the course offe
         - Upgrades from basic to monthly (or pror plans) are reduced by the current paid amount in that month and start immediately
         - Upgrades from pro monthly to pro annual are paid at the end of the current billing period and also starts at the end of the month period
         - once a customer churn, they will no longer make payments
-* [Foodie Fi Subscription Challenge](/Sql_Challenges/3_Foodie_Fi/Foddie_Fi.md)
-* [Foodie Fi Individual Queries](/Sql_Challenges/3_Foodie_Fi/Foodie_Fi_queries.sql)
+* **`Case Study Files`** 
+    * [Foodie Fi Subscription Challenge](/Sql_Challenges/3_Foodie_Fi/Foddie_Fi.md)
+    * [Foodie Fi Individual Queries](/Sql_Challenges/3_Foodie_Fi/Foodie_Fi_queries.sql)
 
 <br>
 
 ### `4 - Data Bank` 🏦
 * This particular challenge mocks the management team at **Data Bank** looking to increase their total customer base by helping just how much data storage their customers would need
-* Sections covered in this challenge focused on
+* **Sections covered in this challenge** focused on
     - Customer Metrics for Transaction and Node Usage
     - Descriptive Percentile and Statistic for Node Usage over different Partitions/Groups
     - Customer Transaction & Balance History over changing time dimensions
@@ -92,13 +115,13 @@ Following completing the educational material for `Serious SQL`, the course offe
 * Within this challenge, our case study covers a theoretical sales performance for Danny's online supermarket.
 * Key business questions center around the following topics
     - Quantifiable impact of changes introduced for a particular time period
-    - Platform, Region, Segment, & Customer Type impact by mocked change and subsequent data over different periods
+    - **Platform, Region, Segment, & Customer Type** impact by mocked change and subsequent data over different periods
 * Tasks also included `Data Cleansing` to generate a new table within the schema for easier data aggregation and metrics for the mentioned subsets above
     - Type Casting
     - Date Segmenting 
     - Finer Data Points and Clarifying Text Representation
     - Conditional Type setting from sql function returns on uncleansed data
-* The Data Exploration looks to use the date values and is most resourceful through our ability to partition and generate summary statistics by partitioned values like **calendar_year** over different demographics
+* The **Data Exploration Section** looks to use the date values and is most resourceful through our ability to partition and generate summary statistics by partitioned values like **calendar_year** over different demographics
 * **`Case Study Files`** 
     * [Data Mart Challenge](/Sql_Challenges/5_DataMart/DataMart_CS.md)
     * [Data Mart Individual Queries](/Sql_Challenges/5_DataMart/DataMart_CS.sql)

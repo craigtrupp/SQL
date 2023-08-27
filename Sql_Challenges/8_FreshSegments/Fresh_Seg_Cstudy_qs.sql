@@ -273,3 +273,55 @@ GROUP BY metric_mth_year
 ORDER BY month_unique_interests DESC;
 
 ---------------------- End of Section B ----------------------
+
+
+
+
+
+---------------------- C. Segment Analysis -------------------
+-- 1. Top 10 & Bottom 10 Composition Interest Ranked
+WITH top_composition_interests AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  'Highest' AS composition_segment
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL
+ORDER BY composition DESC 
+LIMIT 10
+),
+lowest_compositions AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  'Lowest' AS composition_segment
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL
+ORDER BY composition  
+LIMIT 10
+),
+segments AS (
+SELECT * FROM top_composition_interests
+UNION
+SELECT * FROM lowest_compositions
+)
+SELECT 
+  *,
+  CASE
+    WHEN composition_segment = 'Highest'
+      THEN 
+      DENSE_RANK() OVER(
+        PARTITION BY composition_segment
+        ORDER BY composition DESC
+      )
+    WHEN composition_segment = 'Lowest'
+      THEN
+      DENSE_RANK() OVER(
+        PARTITION BY composition_segment
+        ORDER BY composition
+      )
+  END AS segment_ranking
+FROM segments
+ORDER BY composition_segment, segment_ranking

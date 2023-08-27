@@ -795,3 +795,119 @@ ORDER BY month_unique_interests DESC;
 <br><br>
 
 ### `C. Segment Analysis` 
+**1.** Using the complete dataset - which are the top 10 and bottom 10 interests which have the largest composition values in any month_year? Only use the maximum composition value for each interest but you must keep the corresponding month_year
+```SQL
+-- Let's see if we can use the ranking column for one month for max/min composition values
+SELECT 
+  interest_id, month_year, composition, ranking, percentile_ranking
+FROM fresh_segments.interest_metrics
+WHERE month_year = '2018-07-01'
+ORDER BY ranking
+LIMIT 3;
+```
+|interest_id|month_year|composition|ranking|percentile_ranking|
+|----|----|-----|-----|----|
+|32486|2018-07-01|11.89|1|99.86|
+|6106|2018-07-01|9.93|2|99.73|
+|18923|2018-07-01|10.85|3|99.59|
+
+* So it doesn't look like we do anything to special here but we can create a custom output with the segments and a ranking for the the `highest` and `lowest` segments
+  - Notice how the CTE is able to scope first CTE in Union reference for segments
+```sql
+WITH top_composition_interests AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  'Highest' AS composition_segment
+FROM fresh_segments.interest_metrics
+ORDER BY composition DESC 
+LIMIT 10
+),
+lowest_compositions AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  'Lowest' AS composition_segment
+FROM fresh_segments.interest_metrics
+ORDER BY composition  
+LIMIT 10
+),
+segments AS (
+SELECT * FROM top_composition_interests
+UNION
+SELECT * FROM lowest_compositions
+)
+SELECT * FROM segments ORDER BY composition DESC;
+```
+|interest_id|month_year|composition|composition_segment|
+|-----|------|-----|------|
+|21057|2018-12-01|21.2|Highest|
+|21057|2018-10-01|20.28|Highest|
+|21057|2018-11-01|19.45|Highest|
+|21057|2019-01-01|18.99|Highest|
+|6284|2018-07-01|18.82|Highest|
+|21057|2019-02-01|18.39|Highest|
+|21057|2018-09-01|18.18|Highest|
+|39|2018-07-01|17.44|Highest|
+|77|2018-07-01|17.19|Highest|
+|12133|2018-10-01|15.15|Highest|
+|34645|2019-04-01|1.52|Lowest|
+|4918|2019-05-01|1.52|Lowest|
+|44449|2019-04-01|1.52|Lowest|
+|16198|2019-03-01|1.52|Lowest|
+|17274|2018-08-01|1.52|Lowest|
+|20768|2019-05-01|1.52|Lowest|
+|34083|2019-06-01|1.52|Lowest|
+|39336|2019-05-01|1.52|Lowest|
+|35742|2019-06-01|1.52|Lowest|
+|45524|2019-05-01|1.51|Lowest|
+
+```sql
+WITH top_composition_interests AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  'Highest' AS composition_segment
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL
+ORDER BY composition DESC 
+LIMIT 10
+),
+lowest_compositions AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  'Lowest' AS composition_segment
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL
+ORDER BY composition  
+LIMIT 10
+),
+segments AS (
+SELECT * FROM top_composition_interests
+UNION
+SELECT * FROM lowest_compositions
+)
+SELECT 
+  *,
+  CASE
+    WHEN composition_segment = 'Highest'
+      THEN 
+      DENSE_RANK() OVER(
+        PARTITION BY composition_segment
+        ORDER BY composition DESC
+      )
+    WHEN composition_segment = 'Lowest'
+      THEN
+      DENSE_RANK() OVER(
+        PARTITION BY composition_segment
+        ORDER BY composition
+      )
+  END AS segment_ranking
+FROM segments
+ORDER BY composition_segment, segment_ranking
+```

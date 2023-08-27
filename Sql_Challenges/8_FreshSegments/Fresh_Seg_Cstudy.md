@@ -933,3 +933,26 @@ ORDER BY composition_segment, segment_ranking
 |20768|2019-05-01|1.52|Lowest|2|
 |34083|2019-06-01|1.52|Lowest|2|
 |39336|2019-05-01|1.52|Lowest|2|
+
+<br>
+
+**2.** Which 5 interests had the lowest average ranking value?
+```sql
+SELECT
+  metrics.interest_id, map.interest_name,
+  ROUND(AVG(ranking), 2) AS interest_avg_ranking,
+  COUNT(*) AS interest_record_count
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON map.id = metrics.interest_id
+GROUP BY interest_id, interest_name
+ORDER BY interest_avg_ranking
+LIMIT 5;
+```
+|interest_id|interest_name|interest_avg_ranking|interest_record_count|
+|-----|----|-----|-----|
+|41548|Winter Apparel Shoppers|1.00|9|
+|42203|Fitness Activity Tracker Users|4.11|9|
+|115|Men's Shoe Shoppers|5.93|14|
+|48154|Elite Cycling Gear Shoppers|7.80|5|
+|171|Shoe Shoppers|9.36|14|

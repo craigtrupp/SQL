@@ -325,3 +325,15 @@ SELECT
   END AS segment_ranking
 FROM segments
 ORDER BY composition_segment, segment_ranking
+
+
+-- 2 Which 5 interests had the lowest average ranking value?
+SELECT
+  metrics.interest_id, map.interest_name,
+  ROUND(AVG(ranking), 2) AS interest_avg_ranking,
+  COUNT(*) AS interest_record_count
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON map.id = metrics.interest_id
+GROUP BY interest_id, interest_name
+ORDER BY interest_avg_ranking

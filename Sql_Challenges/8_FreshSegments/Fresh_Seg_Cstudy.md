@@ -993,6 +993,92 @@ LIMIT 10
 |5|2019-05-01|1.78|14|
 
 * Multi-level join here allows us to use the partition rankings for the composition value to extract the highest and lowest values for each, we can now get a more diverse look at the top/bottom composition values
+```sql
+WITH ranked_composition_values AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  -- As we're only taking a top/bottom value per interest_id value 
+  -- (don't want repeating interest_id values we need to give each composition a ranking regardless if they're tied)
+  ROW_NUMBER() OVER(
+    PARTITION BY interest_id
+    ORDER BY composition DESC
+  ) AS id_composition_rankings
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL
+ORDER BY interest_id, id_composition_rankings 
+),
+top_bottom_intid_values AS (
+SELECT
+  interest_id,
+  MIN(id_composition_rankings) AS top_join_value,
+  MAX(id_composition_rankings) AS bottom_join_value
+FROM ranked_composition_values
+GROUP BY interest_id
+),
+joined_ctes AS (
+SELECT
+  cte_1.interest_id,
+  cte_1.month_year,
+  cte_1.composition,
+  cte_1.id_composition_rankings
+FROM top_bottom_intid_values AS cte_2
+INNER JOIN ranked_composition_values AS cte_1
+  ON cte_2.interest_id = cte_1.interest_id
+  AND (cte_2.top_join_value = cte_1.id_composition_rankings OR cte_2.bottom_join_value = cte_1.id_composition_rankings)
+ORDER BY cte_1.interest_id, cte_1.id_composition_rankings
+),
+unioned_top_bottom AS (
+-- Each query below to be unioned (for top/bottom 10 w/limit must be passed in parentheses to be unioned)
+(SELECT
+  interest_id, month_year, composition, 
+  'Higher Segment' AS composition_segment
+FROM joined_ctes
+ORDER BY composition DESC 
+LIMIT 10)
+UNION ALL
+(SELECT
+  interest_id, month_year, composition, 
+  'Lower Segment' AS composition_segment
+FROM joined_ctes
+ORDER BY composition  
+LIMIT 10)
+)
+SELECT 
+  union_cte.interest_id, map.interest_name, union_cte.month_year,
+  union_cte.composition, union_cte.composition_segment
+FROM unioned_top_bottom AS union_cte
+INNER JOIN fresh_segments.interest_map AS map 
+  ON union_cte.interest_id = map.id
+ORDER BY union_cte.composition_segment, union_cte.composition DESC;
+```
+|interest_id|interest_name|month_year|composition|composition_segment|
+|----|-----|-----|----|----|
+|21057|Work Comes First Travelers|2018-12-01|21.2|Higher Segment|
+|6284|Gym Equipment Owners|2018-07-01|18.82|Higher Segment|
+|39|Furniture Shoppers|2018-07-01|17.44|Higher Segment|
+|77|Luxury Retail Shoppers|2018-07-01|17.19|Higher Segment|
+|12133|Luxury Boutique Hotel Researchers|2018-10-01|15.15|Higher Segment|
+|5969|Luxury Bedding Shoppers|2018-12-01|15.05|Higher Segment|
+|171|Shoe Shoppers|2018-07-01|14.91|Higher Segment|
+|4898|Cosmetics and Beauty Shoppers|2018-07-01|14.23|Higher Segment|
+|6286|Luxury Hotel Guests|2018-07-01|14.1|Higher Segment|
+|4|Luxury Retail Researchers|2018-07-01|13.97|Higher Segment|
+|16198|World of Warcraft Enthusiasts|2019-03-01|1.52|Lower Segment|
+|4918|Gastrointestinal Researchers|2019-05-01|1.52|Lower Segment|
+|17274|Readers of Jamaican Content|2018-08-01|1.52|Lower Segment|
+|35742|Disney Fans|2019-06-01|1.52|Lower Segment|
+|20768|Beer Aficionados|2019-05-01|1.52|Lower Segment|
+|34083|New York Giants Fans|2019-06-01|1.52|Lower Segment|
+|34645|Minnesota Vikings Fans|2019-04-01|1.52|Lower Segment|
+|39336|Philadelphia 76ers Fans|2019-05-01|1.52|Lower Segment|
+|44449|United Nations Donors|2019-04-01|1.52|Lower Segment|
+|45524|Mowing Equipment Shoppers|2019-05-01|1.51|Lower Segment|
+
+* If we wanted to go one layer deeper we could rank the segment values in a window function to rank the segment values but will leave as is for now
+
+<br>
 
 **2.** Which 5 interests had the lowest average ranking value?
 ```sql

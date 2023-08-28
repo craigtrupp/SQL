@@ -936,6 +936,64 @@ ORDER BY composition_segment, segment_ranking
 
 <br>
 
+* **`W/Unique Non Repeating InterestID Values`**
+  - Only use the **maximum composition value for each interest** but you must keep the corresponding month_year : `Question Revision for New Query Output`
+  - As the above output shows, the interest_id is repeating in instances and the discord channel details the uniqueness of the interest_id values for high/low values and non-repeating values for the interest in a singular (one potential high and one potential low for our top/bottom 10 counts)
+  - This means we'll need to rank the **interest_id** in their own `window / partition` then order by the composition of the top/bottom value for each in a standard DESC/ASC ordering style
+
+```sql
+WITH ranked_composition_values AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  -- As we're only taking a top/bottom value per interest_id value 
+  -- (don't want repeating interest_id values we need to give each composition a ranking regardless if they're tied)
+  ROW_NUMBER() OVER(
+    PARTITION BY interest_id
+    ORDER BY composition DESC
+  ) AS id_composition_rankings
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL
+ORDER BY interest_id, id_composition_rankings 
+),
+top_bottom_intid_values AS (
+SELECT
+  interest_id,
+  MIN(id_composition_rankings) AS top_join_value,
+  MAX(id_composition_rankings) AS bottom_join_value
+FROM ranked_composition_values
+GROUP BY interest_id
+)
+SELECT
+  cte_1.interest_id,
+  cte_1.month_year,
+  cte_1.composition,
+  cte_1.id_composition_rankings
+FROM top_bottom_intid_values AS cte_2
+INNER JOIN ranked_composition_values AS cte_1
+  ON cte_2.interest_id = cte_1.interest_id
+  AND (cte_2.top_join_value = cte_1.id_composition_rankings OR cte_2.bottom_join_value = cte_1.id_composition_rankings)
+ORDER BY cte_1.interest_id, cte_1.id_composition_rankings
+LIMIT 10
+```
+* Output here is the top and bottom composition value for each `interest_id`
+
+|interest_id|month_year|composition|id_composition_rankings|
+|----|----|-----|-----|
+|1|2018-07-01|7.02|1|
+|1|2019-05-01|1.68|12|
+|2|2019-02-01|3.09|1|
+|2|2018-07-01|1.81|11|
+|3|2018-07-01|6.14|1|
+|3|2018-12-01|1.73|10|
+|4|2018-07-01|13.97|1|
+|4|2019-05-01|3.43|14|
+|5|2018-07-01|10.82|1|
+|5|2019-05-01|1.78|14|
+
+* Multi-level join here allows us to use the partition rankings for the composition value to extract the highest and lowest values for each, we can now get a more diverse look at the top/bottom composition values
+
 **2.** Which 5 interests had the lowest average ranking value?
 ```sql
 SELECT

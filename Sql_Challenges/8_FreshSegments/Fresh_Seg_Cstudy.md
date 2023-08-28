@@ -1100,3 +1100,47 @@ LIMIT 5;
 |115|Men's Shoe Shoppers|5.93|14|
 |48154|Elite Cycling Gear Shoppers|7.80|5|
 |171|Shoe Shoppers|9.36|14|
+
+<br>
+
+**3.** Which 5 interests had the largest standard deviation in their percentile_ranking value?
+* Ranking by the aggregate stddev function with that interest id having at least 5 records from our metrics gathering
+```sql
+WITH std_percranking_ranks AS (
+SELECT
+  map.id, map.interest_name,
+  STDDEV(metrics.percentile_ranking)::NUMERIC(10, 2) AS interest_stddev,
+  RANK() OVER(
+  -- This resulting rank is the grouped by percentile ranking for each interest_id (essentiall just the above aggregate)
+    ORDER BY STDDEV(metrics.percentile_ranking)::NUMERIC(10, 2) DESC
+  ) AS interest_id_stddev_rankings,
+  COUNT(*) AS interest_metrics_records,
+  MAX(metrics.percentile_ranking) AS max_percentile,
+  MIN(metrics.percentile_ranking) AS min_percentile,
+  ROUND(AVG(metrics.percentile_ranking)::NUMERIC, 2) AS avg_percentile
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id
+WHERE metrics.month_year IS NOT NULL 
+-- set condition to only rank interest_id with at least 5 readings in the metrics table
+AND map.id IN 
+  (
+    SELECT interest_id 
+    FROM fresh_segments.interest_metrics 
+    GROUP BY interest_id 
+    HAVING COUNT(interest_id) >= 5
+  )
+GROUP BY map.id, map.interest_name
+)
+SELECT * 
+FROM std_percranking_ranks 
+WHERE interest_id_stddev_rankings <= 5
+ORDER BY interest_id_stddev_rankings;
+```
+|id|interest_name|interest_stddev|interest_id_stddev_rankings|interest_metrics_records|max_percentile|min_percentile|avg_percentile|
+|---|----|----|----|----|---|----|-----|
+|131|Android Fans|30.72|1|5|75.03|4.84|20.25|
+|150|TV Junkies|30.36|2|5|93.28|10.01|45.64|
+|23|Techies|30.18|3|6|86.69|7.92|28.08|
+|20764|Entertainment Industry Decision Makers|28.97|4|6|86.15|11.23|27.62|
+|38992|Oregon Trip Planners|28.32|5|10|82.44|2.2|39.73|

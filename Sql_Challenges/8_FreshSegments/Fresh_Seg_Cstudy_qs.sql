@@ -397,3 +397,36 @@ INNER JOIN fresh_segments.interest_map AS map
   ON map.id = metrics.interest_id
 GROUP BY interest_id, interest_name
 ORDER BY interest_avg_ranking
+
+
+-- 3 Which 5 interests had the largest standard deviation in their percentile_ranking 
+WITH std_percranking_ranks AS (
+SELECT
+  map.id, map.interest_name,
+  STDDEV(metrics.percentile_ranking)::NUMERIC(10, 2) AS interest_stddev,
+  RANK() OVER(
+  -- This resulting rank is the grouped by percentile ranking for each interest_id (essentiall just the above aggregate)
+    ORDER BY STDDEV(metrics.percentile_ranking)::NUMERIC(10, 2) DESC
+  ) AS interest_id_stddev_rankings,
+  COUNT(*) AS interest_metrics_records,
+  MAX(metrics.percentile_ranking) AS max_percentile,
+  MIN(metrics.percentile_ranking) AS min_percentile,
+  ROUND(AVG(metrics.percentile_ranking)::NUMERIC, 2) AS avg_percentile
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id
+WHERE metrics.month_year IS NOT NULL 
+-- set condition to only rank interest_id with at least 5 readings in the metrics table
+AND map.id IN 
+  (
+    SELECT interest_id 
+    FROM fresh_segments.interest_metrics 
+    GROUP BY interest_id 
+    HAVING COUNT(interest_id) >= 5
+  )
+GROUP BY map.id, map.interest_name
+)
+SELECT * 
+FROM std_percranking_ranks 
+WHERE interest_id_stddev_rankings <= 5
+ORDER BY interest_id_stddev_rankings;

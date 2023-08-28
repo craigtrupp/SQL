@@ -794,7 +794,7 @@ ORDER BY month_unique_interests DESC;
 
 <br><br>
 
-### `C. Segment Analysis` 
+### **`C. Segment Analysis`**
 **1.** Using the complete dataset - which are the top 10 and bottom 10 interests which have the largest composition values in any month_year? Only use the maximum composition value for each interest but you must keep the corresponding month_year
 ```SQL
 -- Let's see if we can use the ranking column for one month for max/min composition values

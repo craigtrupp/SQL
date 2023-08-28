@@ -326,6 +326,66 @@ SELECT
 FROM segments
 ORDER BY composition_segment, segment_ranking
 
+-- Secondary Query for distinct interest_id type top/bottom values for Question # 1 for Section C
+WITH ranked_composition_values AS (
+SELECT
+  interest_id,
+  month_year,
+  composition,
+  -- As we're only taking a top/bottom value per interest_id value 
+  -- (don't want repeating interest_id values we need to give each composition a ranking regardless if they're tied)
+  ROW_NUMBER() OVER(
+    PARTITION BY interest_id
+    ORDER BY composition DESC
+  ) AS id_composition_rankings
+FROM fresh_segments.interest_metrics
+WHERE month_year IS NOT NULL
+ORDER BY interest_id, id_composition_rankings 
+),
+top_bottom_intid_values AS (
+SELECT
+  interest_id,
+  MIN(id_composition_rankings) AS top_join_value,
+  MAX(id_composition_rankings) AS bottom_join_value
+FROM ranked_composition_values
+GROUP BY interest_id
+),
+joined_ctes AS (
+SELECT
+  cte_1.interest_id,
+  cte_1.month_year,
+  cte_1.composition,
+  cte_1.id_composition_rankings
+FROM top_bottom_intid_values AS cte_2
+INNER JOIN ranked_composition_values AS cte_1
+  ON cte_2.interest_id = cte_1.interest_id
+  AND (cte_2.top_join_value = cte_1.id_composition_rankings OR cte_2.bottom_join_value = cte_1.id_composition_rankings)
+ORDER BY cte_1.interest_id, cte_1.id_composition_rankings
+),
+unioned_top_bottom AS (
+-- Each query below to be unioned (for top/bottom 10 w/limit must be passed in parentheses to be unioned)
+(SELECT
+  interest_id, month_year, composition, 
+  'Higher Segment' AS composition_segment
+FROM joined_ctes
+ORDER BY composition DESC 
+LIMIT 10)
+UNION ALL
+(SELECT
+  interest_id, month_year, composition, 
+  'Lower Segment' AS composition_segment
+FROM joined_ctes
+ORDER BY composition  
+LIMIT 10)
+)
+SELECT 
+  union_cte.interest_id, map.interest_name, union_cte.month_year,
+  union_cte.composition, union_cte.composition_segment
+FROM unioned_top_bottom AS union_cte
+INNER JOIN fresh_segments.interest_map AS map 
+  ON union_cte.interest_id = map.id
+ORDER BY union_cte.composition_segment, union_cte.composition DESC;
+
 
 -- 2 Which 5 interests had the lowest average ranking value?
 SELECT

@@ -1149,163 +1149,53 @@ ORDER BY interest_id_stddev_rankings;
 
 **4.** For the 5 interests found in the previous question - what was minimum and maximum percentile_ranking values for each interest and its corresponding year_month value? Can you describe what is happening for these 5 interests?
 * We're gonna use just a handful of the ids and calculate total for each interest id as well as percentage differences from percentile_ranks against the minimum and maximum percentile for that interest
-
-
-
-
-id
-⋮
-interest_name
-⋮
-month_year
-⋮
-composition
-⋮
-data_set_ranking
-⋮
-percentile_ranking
-⋮
-id_pr_rank
-⋮
-id_comp_rank
-⋮
-id_max_prank
-⋮
-id_min_prank
-⋮
-prank_diff_perc_max
-⋮
-prank_diff_perc_min
-⋮
-23
-Techies
-2018-07-01
-5.41
-97
-86.69
-1
-1
-86.69
-7.92
-0.00%
-166.52%
-23
-Techies
-2018-08-01
-1.9
-530
-30.9
-2
-3
-86.69
-7.92
-94.89%
-118.39%
-23
-Techies
-2018-09-01
-1.6
-594
-23.85
-3
-6
-86.69
-7.92
-113.70%
-100.28%
-23
-Techies
-2019-03-01
-1.91
-1026
-9.68
-4
-2
-86.69
-7.92
-159.82%
-20.00%
-23
-Techies
-2019-02-01
-1.89
-1015
-9.46
-5
-5
-86.69
-7.92
-160.64%
-17.72%
-23
-Techies
-2019-08-01
-1.9
-1058
-7.92
-6
-3
-86.69
-7.92
-166.52%
-0.00%
-131
-Android Fans
-2018-07-01
-5.09
-182
-75.03
-1
-1
-75.03
-4.84
-0.00%
-175.76%
-131
-Android Fans
-2018-08-01
-1.77
-684
-10.82
-2
-4
-75.03
-4.84
-149.59%
-76.37%
-131
-Android Fans
-2019-02-01
-1.85
-1058
-5.62
-3
-3
-75.03
-4.84
-172.13%
-14.91%
-131
-Android Fans
-2019-08-01
-1.91
-1092
-4.96
-4
-2
-75.03
-4.84
-175.20%
-2.45%
-131
-Android Fans
-2019-03-01
-1.72
-1081
-4.84
-5
-5
-75.03
-4.84
-175.76%
-0.00%
+```sql
+WITH percentile_rankings AS (
+SELECT  
+  map.id, map.interest_name, metrics.month_year, metrics.composition, metrics.ranking AS data_set_ranking, metrics.percentile_ranking,
+  RANK() OVER (
+    PARTITION BY map.id
+    ORDER BY metrics.percentile_ranking DESC
+  ) AS id_pr_rank,
+  RANK() OVER (
+    PARTITION BY map.id
+    ORDER BY metrics.composition DESC
+  ) AS id_comp_rank,
+  MAX(metrics.percentile_ranking) OVER (
+    PARTITION BY map.id
+  ) AS id_max_prank,
+  MIN(metrics.percentile_ranking) OVER (
+    PARTITION BY map.id
+  ) AS id_min_prank
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id
+WHERE metrics.month_year IS NOT NULL
+-- AND metrics.interest_id IN (131,150,23,20764,38992)
+AND metrics.interest_id in (131, 23)
+ORDER BY map.id, id_pr_rank
+)
+SELECT 
+  *, 
+  -- https://www.calculatorsoup.com/calculators/algebra/percent-difference-calculator.php
+  CONCAT(
+    ROUND(CAST((ABS(percentile_ranking - id_max_prank) / ((percentile_ranking + id_max_prank) / 2)) * 100 AS NUMERIC), 2)
+  , '%') AS prank_diff_perc_max,
+  CONCAT(
+    ROUND(CAST((ABS(percentile_ranking - id_min_prank) / ((percentile_ranking + id_min_prank) / 2)) * 100 AS NUMERIC), 2)
+  , '%') AS prank_diff_perc_min
+FROM percentile_rankings;
+```
+|id|interest_name|month_year|composition|data_set_ranking|percentile_ranking|id_pr_rank|id_comp_rank|id_max_prank|id_min_prank|prank_diff_perc_max|prank_diff_perc_min|
+|----|-----|---|----|----|-----|-----|----|----|-----|-----|------|
+|23|Techies|2018-07-01|5.41|97|86.69|1|1|86.69|7.92|0.00%|166.52%|
+|23|Techies|2018-08-01|1.9|530|30.9|2|3|86.69|7.92|94.89%|118.39%|
+|23|Techies|2018-09-01|1.6|594|23.85|3|6|86.69|7.92|113.70%|100.28%|
+|23|Techies|2019-03-01|1.91|1026|9.68|4|2|86.69|7.92|159.82%|20.00%|
+|23|Techies|2019-02-01|1.89|1015|9.46|5|5|86.69|7.92|160.64%|17.72%|
+|23|Techies|2019-08-01|1.9|1058|7.92|6|3|86.69|7.92|166.52%|0.00%|
+|131|Android Fans|2018-07-01|5.09|182|75.03|1|1|75.03|4.84|0.00%|175.76%|
+|131|Android Fans|2018-08-01|1.77|684|10.82|2|4|75.03|4.84|149.59%|76.37%|
+|131|Android Fans|2019-02-01|1.85|1058|5.62|3|3|75.03|4.84|172.13%|14.91%|
+|131|Android Fans|2019-08-01|1.91|1092|4.96|4|2|75.03|4.84|175.20%|2.45%|
+|131|Android Fans|2019-03-01|1.72|1081|4.84|5|5|75.03|4.84|175.76%|0.00%|

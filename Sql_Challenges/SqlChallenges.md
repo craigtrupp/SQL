@@ -195,7 +195,14 @@ Following completing the educational material for `Serious SQL`, the course offe
         - Unique InterestIDs per month
         - Possible Data Point Omission through cumulative percentage of uniuqe interstID key contributing data points and filtering of less seen observations
     * Segment Analysis
+        - Top Composition Segmenting By Unique Interests, CTE chained to Union Output w/subsequent Ranking of Segments
+            * Non Repeating Interests for Uniqueness of Values
+        - Lowest Average Percentile Ranking By Aggregated Interest Metric Data
+        - Largest Standard Deviation for Interests with 5 months at least of reporting data
     * Index Analysis 
+        - Moving Average for Composition Ranking in 3 Month Period
+        - Monthy Ranking of Top 10 Interests Per Month
+        - Average Composition for Top 10 Interest Per Month Ranked
 * **`Case Study Files`**
     * [Fresh Segments Challenge](/Sql_Challenges/8_FreshSegments/Fresh_Seg_Cstudy.md)
     * [Fresh Segments Individual Queries](/Sql_Challenges/8_FreshSegments/Fresh_Seg_Cstudy_qs.sql)

@@ -430,3 +430,40 @@ SELECT *
 FROM std_percranking_ranks 
 WHERE interest_id_stddev_rankings <= 5
 ORDER BY interest_id_stddev_rankings;
+
+-- 4 For the 5 interests found in the previous question - what was minimum and maximum percentile_ranking values for each interest 
+-- and its corresponding year_month value? Can you describe what is happening for these 5 interests?
+WITH percentile_rankings AS (
+SELECT  
+  map.id, map.interest_name, metrics.month_year, metrics.composition, metrics.ranking AS data_set_ranking, metrics.percentile_ranking,
+  RANK() OVER (
+    PARTITION BY map.id
+    ORDER BY metrics.percentile_ranking DESC
+  ) AS id_pr_rank,
+  RANK() OVER (
+    PARTITION BY map.id
+    ORDER BY metrics.composition DESC
+  ) AS id_comp_rank,
+  MAX(metrics.percentile_ranking) OVER (
+    PARTITION BY map.id
+  ) AS id_max_prank,
+  MIN(metrics.percentile_ranking) OVER (
+    PARTITION BY map.id
+  ) AS id_min_prank
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id
+WHERE metrics.month_year IS NOT NULL
+AND metrics.interest_id IN (131,150,23,20764,38992)
+ORDER BY map.id, id_pr_rank
+)
+SELECT 
+  *, 
+  -- https://www.calculatorsoup.com/calculators/algebra/percent-difference-calculator.php
+  CONCAT(
+    ROUND(CAST((ABS(percentile_ranking - id_max_prank) / ((percentile_ranking + id_max_prank) / 2)) * 100 AS NUMERIC), 2)
+  , '%') AS prank_diff_perc_max,
+  CONCAT(
+    ROUND(CAST((ABS(percentile_ranking - id_min_prank) / ((percentile_ranking + id_min_prank) / 2)) * 100 AS NUMERIC), 2)
+  , '%') AS prank_diff_perc_min
+FROM percentile_rankings;

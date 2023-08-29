@@ -467,3 +467,12 @@ SELECT
     ROUND(CAST((ABS(percentile_ranking - id_min_prank) / ((percentile_ranking + id_min_prank) / 2)) * 100 AS NUMERIC), 2)
   , '%') AS prank_diff_perc_min
 FROM percentile_rankings;
+
+
+--------------------------- End of Section C  ---------------------------
+
+
+
+
+
+--------------------------- D. Index Analysis ---------------------------

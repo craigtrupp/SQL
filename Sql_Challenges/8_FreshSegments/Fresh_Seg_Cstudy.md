@@ -1199,3 +1199,10 @@ FROM percentile_rankings;
 |131|Android Fans|2019-02-01|1.85|1058|5.62|3|3|75.03|4.84|172.13%|14.91%|
 |131|Android Fans|2019-08-01|1.91|1092|4.96|4|2|75.03|4.84|175.20%|2.45%|
 |131|Android Fans|2019-03-01|1.72|1081|4.84|5|5|75.03|4.84|175.76%|0.00%|
+
+<br><br>
+
+### **`D. Index Analysis`**
+* The `index_value` is a measure which can be used to reverse calculate the average composition for Fresh Segments’ clients.
+
+Average composition can be calculated by dividing the composition column by the index_value column rounded to 2 decimal places.

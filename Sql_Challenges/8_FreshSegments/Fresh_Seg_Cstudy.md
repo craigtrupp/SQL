@@ -1305,3 +1305,163 @@ SELECT * FROM top_10_total_interest_appearances;
 |10981|New Years Eve Party Ticket Purchasers|9|2|
 |34|Teen Girl Clothing Shoppers|8|3|
 |21057|Work Comes First Travelers|8|3|
+
+<br>
+
+**3.** What is the average of the average composition for the top 10 interests for each month and each months ranking for the 14 unique monthly metrics period?
+```sql
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metrics.month_year, month_avg_comp_rank
+),
+top_10_monthly_interest AS (
+SELECT * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10
+)
+SELECT
+  month_year,
+  ROUND(AVG(int_idx_avgcomp), 2) AS monthly_avg_composition,
+  RANK() OVER (
+    ORDER BY AVG(int_idx_avgcomp) DESC
+  ) AS monthly_avg_composition_ranking
+FROM top_10_monthly_interest
+GROUP BY month_year
+ORDER BY monthly_avg_composition_ranking;
+```
+|month_year|monthly_avg_composition|monthly_avg_composition_ranking|
+|----|-----|----|
+|2018-10-01|7.07|1|
+|2018-09-01|6.90|2|
+|2018-12-01|6.65|3|
+|2018-11-01|6.62|4|
+|2019-02-01|6.58|5|
+|2019-01-01|6.32|6|
+|2019-03-01|6.12|7|
+|2018-07-01|6.04|8|
+|2018-08-01|5.95|9|
+|2019-04-01|5.75|10|
+|2019-05-01|3.54|11|
+|2019-07-01|2.77|12|
+|2019-08-01|2.63|13|
+|2019-06-01|2.43|14|
+
+<br>
+
+**4.** What is the 3 month rolling average of the max average composition value from September 2018 to August 2019 and include the previous top ranking interests in the same output shown below.
+![Desired Output](images/index_4_output.png)
+```sql
+-- First let's isolate the top rankings per month from our previous CTE path
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metrics.month_year, month_avg_comp_rank
+),
+top_10_monthly_interest AS (
+SELECT * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10
+),
+-- first we want to isolate the top ranking of each month RANK() did not have any ties for the max value for any month 
+top_monthly_avg_comps AS (
+SELECT * 
+FROM top_10_monthly_interest
+WHERE month_avg_comp_rank = 1
+ORDER BY month_year
+)
+SELECT * FROM top_monthly_avg_comps;
+```
+|id|interest_name|month_year|int_idx_avgcomp|month_avg_comp_rank|
+|----|----|----|-----|-----|
+|6324|Las Vegas Trip Planners|2018-07-01|7.36|1|
+|6324|Las Vegas Trip Planners|2018-08-01|7.21|1|
+|21057|Work Comes First Travelers|2018-09-01|8.26|1|
+|21057|Work Comes First Travelers|2018-10-01|9.14|1|
+|21057|Work Comes First Travelers|2018-11-01|8.28|1|
+|21057|Work Comes First Travelers|2018-12-01|8.31|1|
+|21057|Work Comes First Travelers|2019-01-01|7.66|1|
+|21057|Work Comes First Travelers|2019-02-01|7.66|1|
+|7541|Alabama Trip Planners|2019-03-01|6.54|1|
+|6065|Solar Energy Researchers|2019-04-01|6.28|1|
+|21245|Readers of Honduran Content|2019-05-01|4.41|1|
+|6324|Las Vegas Trip Planners|2019-06-01|2.77|1|
+|6324|Las Vegas Trip Planners|2019-07-01|2.82|1|
+|4898|Cosmetics and Beauty Shoppers|2019-08-01|2.73|1|
+
+* We should now have all data to start getting closer the question's required output for the solution
+  - Let's first start with a few LAG operations to see how we can generate further details to get closer to the final output
+```sql
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metrics.month_year, month_avg_comp_rank
+),
+top_10_monthly_interest AS (
+SELECT * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10
+),
+-- first we want to isolate the top ranking of each month RANK() did not have any ties for the max value for any month 
+top_monthly_avg_comps AS (
+SELECT * 
+FROM top_10_monthly_interest
+WHERE month_avg_comp_rank = 1
+ORDER BY month_year
+),
+-- And now create the str type representation and extract the value for 1/2 months back
+-- will need for the eventual 3_month_moving_avg
+lagging_top_avg_comps AS (
+SELECT 
+  *, 
+  LAG(CONCAT(interest_name, ': ', int_idx_avgcomp)) OVER (ORDER BY month_year) AS one_month_ago_str,
+  LAG(int_idx_avgcomp) OVER (ORDER BY month_year) AS one_month_ago_value,
+  LAG(CONCAT(interest_name, ': ', int_idx_avgcomp), 2) OVER (ORDER BY month_year) AS two_months_ago,
+  LAG(int_idx_avgcomp, 2) OVER (ORDER BY month_year) AS two_month_ago_value
+FROM top_monthly_avg_comps
+)
+SELECT * FROM lagging_top_avg_comps;
+```
+|id|interest_name|month_year|int_idx_avgcomp|month_avg_comp_rank|one_month_ago_str|one_month_ago_value|two_months_ago|two_month_ago_value|
+|----|---|----|----|----|----|----|-----|-----|
+|6324|Las Vegas Trip Planners|2018-07-01|7.36|1|null|null|null|null|
+|6324|Las Vegas Trip Planners|2018-08-01|7.21|1|Las Vegas Trip Planners: 7.36|7.36|null|null|
+|21057|Work Comes First Travelers|2018-09-01|8.26|1|Las Vegas Trip Planners: 7.21|7.21|Las Vegas Trip Planners: 7.36|7.36|
+|21057|Work Comes First Travelers|2018-10-01|9.14|1|Work Comes First Travelers: 8.26|8.26|Las Vegas Trip Planners: 7.21|7.21|
+|21057|Work Comes First Travelers|2018-11-01|8.28|1|Work Comes First Travelers: 9.14|9.14|Work Comes First Travelers: 8.26|8.26|
+|21057|Work Comes First Travelers|2018-12-01|8.31|1|Work Comes First Travelers: 8.28|8.28|Work Comes First Travelers: 9.14|9.14|
+|21057|Work Comes First Travelers|2019-01-01|7.66|1|Work Comes First Travelers: 8.31|8.31|Work Comes First Travelers: 8.28|8.28|
+|21057|Work Comes First Travelers|2019-02-01|7.66|1|Work Comes First Travelers: 7.66|7.66|Work Comes First Travelers: 8.31|8.31|
+|7541|Alabama Trip Planners|2019-03-01|6.54|1|Work Comes First Travelers: 7.66|7.66|Work Comes First Travelers: 7.66|7.66|
+|6065|Solar Energy Researchers|2019-04-01|6.28|1|Alabama Trip Planners: 6.54|6.54|Work Comes First Travelers: 7.66|7.66|
+|21245|Readers of Honduran Content|2019-05-01|4.41|1|Solar Energy Researchers: 6.28|6.28|Alabama Trip Planners: 6.54|6.54|
+|6324|Las Vegas Trip Planners|2019-06-01|2.77|1|Readers of Honduran Content: 4.41|4.41|Solar Energy Researchers: 6.28|6.28|
+|6324|Las Vegas Trip Planners|2019-07-01|2.82|1|Las Vegas Trip Planners: 2.77|2.77|Readers of Honduran Content: 4.41|4.41|
+|4898|Cosmetics and Beauty Shoppers|2019-08-01|2.73|1|Las Vegas Trip Planners: 2.82|2.82|Las Vegas Trip Planners: 2.77|2.77|

@@ -476,3 +476,24 @@ FROM percentile_rankings;
 
 
 --------------------------- D. Index Analysis ---------------------------
+
+-- 1. What is the top 10 interests by the average composition for each month?
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+ORDER BY metrics.month_year, month_avg_comp_rank
+)
+SELECT 
+  * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10;
+
+-- 2. 

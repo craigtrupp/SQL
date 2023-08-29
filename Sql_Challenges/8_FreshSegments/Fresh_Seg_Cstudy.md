@@ -1206,3 +1206,51 @@ FROM percentile_rankings;
 * The `index_value` is a measure which can be used to reverse calculate the average composition for Fresh Segments’ clients.
 
 Average composition can be calculated by dividing the composition column by the index_value column rounded to 2 decimal places.
+
+**1.** What is the top 10 interests by the average composition for each month?
+```sql
+SELECT COUNT(*) FROM fresh_segments.interest_metrics WHERE month_year = '2018-07-01';
+```
+|count|
+|---|
+|729|
+
+* As a reminder here, we'll need to rank by the **average composition** (composition / index_value) in each month. Above is just a quick idea of how many unique interests metrics there was for one month. We only want to return the top 10 for any particular month we rank by 
+
+```sql
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics 
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+ORDER BY metrics.month_year, month_avg_comp_rank
+)
+SELECT 
+  * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10;
+```
+* Snippet of Output (Each unique month values has 10 rankings for interest avg_comp highest rankings)
+
+|id|interest_name|month_year|int_idx_avgcomp|month_avg_comp_rank|
+|---|----|-----|-----|----|
+|6324|Las Vegas Trip Planners|2018-07-01|7.36|1|
+|6284|Gym Equipment Owners|2018-07-01|6.94|2|
+|4898|Cosmetics and Beauty Shoppers|2018-07-01|6.78|3|
+|77|Luxury Retail Shoppers|2018-07-01|6.61|4|
+|39|Furniture Shoppers|2018-07-01|6.51|5|
+|18619|Asian Food Enthusiasts|2018-07-01|6.10|6|
+|6208|Recently Retired Individuals|2018-07-01|5.72|7|
+|21060|Family Adventures Travelers|2018-07-01|4.85|8|
+|21057|Work Comes First Travelers|2018-07-01|4.80|9|
+|82|HDTV Researchers|2018-07-01|4.71|10|
+|6324|Las Vegas Trip Planners|2018-08-01|7.21|1|
+|6284|Gym Equipment Owners|2018-08-01|6.62|2|
+|77|Luxury Retail Shoppers|2018-08-01|6.53|3|
+|39|Furniture Shoppers|2018-08-01|6.30|4|

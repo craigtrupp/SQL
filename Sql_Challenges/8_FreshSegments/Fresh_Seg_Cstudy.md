@@ -1359,6 +1359,8 @@ ORDER BY monthly_avg_composition_ranking;
 <br>
 
 **4.** What is the 3 month rolling average of the max average composition value from September 2018 to August 2019 and include the previous top ranking interests in the same output shown below.
+* Also a quick note on the output (the `max_index_comp` value is just the value for that month_year)
+  * I'm using a `GREATEST` value for that of the 3 and will include the month standalone value as well
 ![Desired Output](images/index_4_output.png)
 ```sql
 -- First let's isolate the top rankings per month from our previous CTE path
@@ -1465,3 +1467,70 @@ SELECT * FROM lagging_top_avg_comps;
 |6324|Las Vegas Trip Planners|2019-06-01|2.77|1|Readers of Honduran Content: 4.41|4.41|Solar Energy Researchers: 6.28|6.28|
 |6324|Las Vegas Trip Planners|2019-07-01|2.82|1|Las Vegas Trip Planners: 2.77|2.77|Readers of Honduran Content: 4.41|4.41|
 |4898|Cosmetics and Beauty Shoppers|2019-08-01|2.73|1|Las Vegas Trip Planners: 2.82|2.82|Las Vegas Trip Planners: 2.77|2.77|
+
+* So we can put it together now and use the `GREATEST`, `ARRAY`, `CARDINALITY` to perform the moving averages and max_index for the three month moving values being evaluated
+```sql
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metrics.month_year, month_avg_comp_rank
+),
+top_10_monthly_interest AS (
+SELECT * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10
+),
+-- first we want to isolate the top ranking of each month RANK() did not have any ties for the max value for any month 
+top_monthly_avg_comps AS (
+SELECT * 
+FROM top_10_monthly_interest
+WHERE month_avg_comp_rank = 1
+ORDER BY month_year
+),
+lagging_top_avg_comps AS (
+SELECT 
+  *, 
+  LAG(CONCAT(interest_name, ': ', int_idx_avgcomp)) OVER (ORDER BY month_year) AS one_month_ago_str,
+  LAG(int_idx_avgcomp) OVER (ORDER BY month_year) AS one_month_ago_value,
+  LAG(CONCAT(interest_name, ': ', int_idx_avgcomp), 2) OVER (ORDER BY month_year) AS two_months_ago_str,
+  LAG(int_idx_avgcomp, 2) OVER (ORDER BY month_year) AS two_month_ago_value
+FROM top_monthly_avg_comps
+)
+SELECT 
+  month_year, interest_name,
+  int_idx_avgcomp AS cur_month_avgidxcomp ,
+  GREATEST(int_idx_avgcomp, one_month_ago_value, two_month_ago_value) AS moving_3_month_maxcomp,
+  ROUND((int_idx_avgcomp + one_month_ago_value + two_month_ago_value) / CARDINALITY(ARRAY[int_idx_avgcomp, one_month_ago_value, two_month_ago_value])::NUMERIC, 2) AS three_mthmoving_avg,
+  one_month_ago_str AS one_month_ago,
+  two_months_ago_str AS two_month_ago
+FROM lagging_top_avg_comps
+-- This will start us out at the first month date with two months of preceding data
+WHERE two_month_ago_value IS NOT NULL;
+```
+|month_year|interest_name|cur_month_avgidxcomp|moving_3_month_maxcomp|three_mthmoving_avg|one_month_ago|two_month_ago|
+|---|----|----|----|----|----|-----|
+|2018-09-01|Work Comes First Travelers|8.26|8.26|7.61|Las Vegas Trip Planners: 7.21|Las Vegas Trip Planners: 7.36|
+|2018-10-01|Work Comes First Travelers|9.14|9.14|8.20|Work Comes First Travelers: 8.26|Las Vegas Trip Planners: 7.21|
+|2018-11-01|Work Comes First Travelers|8.28|9.14|8.56|Work Comes First Travelers: 9.14|Work Comes First Travelers: 8.26|
+|2018-12-01|Work Comes First Travelers|8.31|9.14|8.58|Work Comes First Travelers: 8.28|Work Comes First Travelers: 9.14|
+|2019-01-01|Work Comes First Travelers|7.66|8.31|8.08|Work Comes First Travelers: 8.31|Work Comes First Travelers: 8.28|
+|2019-02-01|Work Comes First Travelers|7.66|8.31|7.88|Work Comes First Travelers: 7.66|Work Comes First Travelers: 8.31|
+|2019-03-01|Alabama Trip Planners|6.54|7.66|7.29|Work Comes First Travelers: 7.66|Work Comes First Travelers: 7.66|
+|2019-04-01|Solar Energy Researchers|6.28|7.66|6.83|Alabama Trip Planners: 6.54|Work Comes First Travelers: 7.66|
+|2019-05-01|Readers of Honduran Content|4.41|6.54|5.74|Solar Energy Researchers: 6.28|Alabama Trip Planners: 6.54|
+|2019-06-01|Las Vegas Trip Planners|2.77|6.28|4.49|Readers of Honduran Content: 4.41|Solar Energy Researchers: 6.28|
+|2019-07-01|Las Vegas Trip Planners|2.82|4.41|3.33|Las Vegas Trip Planners: 2.77|Readers of Honduran Content: 4.41|
+|2019-08-01|Cosmetics and Beauty Shoppers|2.73|2.82|2.77|Las Vegas Trip Planners: 2.82|Las Vegas Trip Planners: 2.77|
+
+<br>
+
+## `End of Case Study` 🏁

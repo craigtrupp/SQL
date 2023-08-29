@@ -560,3 +560,54 @@ SELECT
 FROM top_10_monthly_interest
 GROUP BY month_year
 ORDER BY monthly_avg_composition_ranking;
+
+
+-- 4 What is the 3 month rolling average of the max average composition value from September 2018 to August 2019 and include the previous top ranking interests in the same output shown below.
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metrics.month_year, month_avg_comp_rank
+),
+top_10_monthly_interest AS (
+SELECT * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10
+),
+-- first we want to isolate the top ranking of each month RANK() did not have any ties for the max value for any month 
+top_monthly_avg_comps AS (
+SELECT * 
+FROM top_10_monthly_interest
+WHERE month_avg_comp_rank = 1
+ORDER BY month_year
+),
+lagging_top_avg_comps AS (
+SELECT 
+  *, 
+  LAG(CONCAT(interest_name, ': ', int_idx_avgcomp)) OVER (ORDER BY month_year) AS one_month_ago_str,
+  LAG(int_idx_avgcomp) OVER (ORDER BY month_year) AS one_month_ago_value,
+  LAG(CONCAT(interest_name, ': ', int_idx_avgcomp), 2) OVER (ORDER BY month_year) AS two_months_ago_str,
+  LAG(int_idx_avgcomp, 2) OVER (ORDER BY month_year) AS two_month_ago_value
+FROM top_monthly_avg_comps
+)
+SELECT 
+  month_year, interest_name,
+  int_idx_avgcomp AS cur_month_avgidxcomp ,
+  GREATEST(int_idx_avgcomp, one_month_ago_value, two_month_ago_value) AS moving_3_month_maxcomp,
+  ROUND((int_idx_avgcomp + one_month_ago_value + two_month_ago_value) / CARDINALITY(ARRAY[int_idx_avgcomp, one_month_ago_value, two_month_ago_value])::NUMERIC, 2) AS three_mthmoving_avg,
+  one_month_ago_str AS one_month_ago,
+  two_months_ago_str AS two_month_ago
+FROM lagging_top_avg_comps
+-- This will start us out at the first month date with two months of preceding data
+WHERE two_month_ago_value IS NOT NULL;
+
+
+------------------------- End of Section D : Index Analysis --------------------

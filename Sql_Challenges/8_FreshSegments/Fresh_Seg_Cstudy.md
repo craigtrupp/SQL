@@ -1254,3 +1254,54 @@ WHERE month_avg_comp_rank <= 10;
 |6284|Gym Equipment Owners|2018-08-01|6.62|2|
 |77|Luxury Retail Shoppers|2018-08-01|6.53|3|
 |39|Furniture Shoppers|2018-08-01|6.30|4|
+
+<br>
+
+**2.** For all of these top 10 interests - which interest appears the most often?
+```sql
+WITH month_avg_interest_composition_rankings AS (
+SELECT
+  map.id, map.interest_name, metrics.month_year,
+  ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) AS int_idx_avgcomp,
+  RANK() OVER (
+    PARTITION BY metrics.month_year
+    ORDER BY ROUND(CAST(metrics.composition / metrics.index_value AS NUMERIC), 2) DESC
+  ) AS month_avg_comp_rank
+FROM fresh_segments.interest_metrics AS metrics
+INNER JOIN fresh_segments.interest_map AS map 
+  ON metrics.interest_id = map.id 
+WHERE metrics.month_year IS NOT NULL
+ORDER BY metrics.month_year, month_avg_comp_rank
+),
+top_10_monthly_interest AS (
+SELECT * 
+FROM month_avg_interest_composition_rankings
+WHERE month_avg_comp_rank <= 10
+),
+top_10_total_interest_appearances AS (
+SELECT 
+  id, interest_name,
+  COUNT(*) AS interest_id_top_10_apps,
+  DENSE_RANK() OVER (
+    ORDER BY COUNT(*) DESC
+  ) AS interest_id_top_10_apps_rank
+FROM top_10_monthly_interest
+GROUP BY id, interest_name
+ORDER BY interest_id_top_10_apps DESC
+)
+SELECT * FROM top_10_total_interest_appearances;
+```
+* Remember Here the `DENSE_RANK` would require a partition of the interest,id and simply want to rank by the count of the aggregate/value we are counting in the last query. So in essence a good reminder here of how a aggregate function in the GROUP BY clause can subsequently then be ranked for it's return for the aggregated count
+* Output would be 30 rows for this particular ouptut as that's how many unique interest values were in the top_10 counts for interest by month. As we'll see, a lot of repeating interest_id values for the avg composition ranks
+  - We'll show the top 3 for ranking for counts in this monthly aggregated roll-up
+
+|id|interest_name|interest_id_top_10_apps|interest_id_top_10_apps_rank|
+|----|----|-----|----|
+|6065|Solar Energy Researchers|10|1|
+|7541|Alabama Trip Planners|10|1|
+|5969|Luxury Bedding Shoppers|10|1|
+|21245|Readers of Honduran Content|9|2|
+|18783|Nursing and Physicians Assistant Journal Researchers|9|2|
+|10981|New Years Eve Party Ticket Purchasers|9|2|
+|34|Teen Girl Clothing Shoppers|8|3|
+|21057|Work Comes First Travelers|8|3|

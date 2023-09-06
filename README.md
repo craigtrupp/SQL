@@ -4,7 +4,8 @@
 
 **Data with Danny** offers a robust path to learning, understanding and most importantly using `SQL` to display its' utility in any data career seeker journey! Below is a quick guide to the repository details and paths within the repository. A huge thank you to Danny for this truly magnificient class and challenging case studies for revealing the value in databases and what SQL can extract! Please see below for the following items
 * Data Schemas used throughout the course (educational and sql challenges) - [Data](#data-used-in-course)
-* Course Education Items and Case Study Walkthroughs
+* Course Education Items and Case Study Walkthroughs - [Educational Content](#course-lecturecase-study-walkthroughs)
+* SQL Challenges - [Mock Business SQL Challenges](#case-study-challenges)
 
 
 ---
@@ -13,8 +14,9 @@
 ### **Data Used In Course**
 * As a note, the `Docker YML` file can also be found within this repository at [Docker YML](/DD_SrSQL/serious-sql/docker-compose.yml) for access to the data used in the course material and subsequent case study challenges for each.
     - After running the **docker-compose up** command in your terminal, you can access the data model schemas and review the schemas with the **SQLPad GUI** accessable at your local host - `http://localhost:3000`
-* Alternatively, you can run the following script within a **BigQuery sandbox** and avoid Docker to access the data used. Brief steps below for the **Free** Sandbox setup and sql file unpackaging into your sql project 
-    - [Big Query Sandbox]
+* Alternatively, you can run the following script within a **BigQuery sandbox** and avoid Docker to access the data used. Brief steps below for the **Free** Sandbox setup and sql file unpackaging into your sanbox-sql project 
+    - [Big Query Sandbox Setup](https://cloud.google.com/bigquery/docs/sandbox)
+    - [Script for Data Import](/DD_SrSQL/big-query-script/sandbox_script.sql)
 
 <br>
 
@@ -73,8 +75,10 @@
 
 <br>
 
+### **Case Study Challenges**
 * **[SQL Challenges](/Sql_Challenges)**
     - Each image below will link to the Case Study for each Challenge
+        - Within easy case study file is a markdown file detailing the challenges/questions and data schema used as well as a stand-alone sql file with the queries for the solutions to the case study items
     - **[Section Markdown](/Sql_Challenges/SqlChallenges.md)**
         - Review of the 8 Week Challenge 
 

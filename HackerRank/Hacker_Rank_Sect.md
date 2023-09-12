@@ -6,4 +6,4 @@
 
 ### **Initial - Basic/Easy SQL Challenges**
 * Challenges and individual SQL queries only added to subsequent file below after passing test cases on platform
-- `SQL File` : [First Challenges](/SQL/HackerRank/Basic_SQL_qrs.sql)
+- `SQL File` : [First Challenges](/HackerRank/Basic_SQL_qrs.sql)

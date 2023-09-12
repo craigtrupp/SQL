@@ -6,4 +6,4 @@
 
 ### **Initial - Basic/Easy SQL Challenges**
 * Challenges and individual SQL queries only added to subsequent file below after passing test cases on platform
-- `SQL File` : [First Challenges](/Basic_SQL_Sect.md)
+- `SQL File` : [First Challenges](/Basic_SQL_qrs.sql)

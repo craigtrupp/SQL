@@ -130,4 +130,4 @@
 
 ### **HackerRank** 🧑‍💻
 * Keeping sharp and completing SQL challenges on the platform
-* [Quick Section Details](/Data_SQL_Srs/Serious_SQL/HackerRank/Hacker_Rank_Sect.md)
+* [Quick Section Details](/HackerRank/Hacker_Rank_Sect.md)

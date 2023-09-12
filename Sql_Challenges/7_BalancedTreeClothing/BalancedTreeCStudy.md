@@ -1847,6 +1847,30 @@ ORDER BY p.id;
 |b9a74d|17|White Striped Socks - Mens|2|6|17|Mens|Socks|White Striped|
 |2feb6b|29|Pink Fluro Polkadot Socks - Mens|2|6|18|Mens|Socks|Pink Fluro Polkadot|
 
+```sql
+WITH prod_details_recreation AS (
+SELECT
+  base_t.level_text AS base_text, base_t.level_name AS base_level, lj_1.level_text AS lj1_seg_prod_text, lj_1.level_name AS lj1_root_prod_text,
+  base_t.id AS base_prim_id, base_t.parent_id AS base_parent, lj_1.id AS lj_seg_id, lj_1.parent_id AS lj_par_id, lj_cat_2.level_text AS category_designation,
+  prod_prices.product_id, prod_prices.price
+FROM balanced_tree.product_hierarchy AS base_t
+LEFT JOIN balanced_tree.product_hierarchy AS lj_1
+  ON base_t.parent_id = lj_1.id
+LEFT JOIN balanced_tree.product_hierarchy AS lj_cat_2
+  ON lj_1.parent_id = lj_cat_2.id
+INNER JOIN balanced_tree.product_prices AS prod_prices
+  ON base_t.id = prod_prices.id
+WHERE lj_cat_2.level_text IS NOT NULL
+ORDER BY base_prim_id
+)
+SELECT
+  pdr.product_id, pdr.price, 
+  CONCAT(pdr.base_text, ' ', pdr.lj1_seg_prod_text, ' - ', pdr.category_designation) AS product_name,
+  pdr.lj_par_id AS category_id, pdr.base_parent AS segment_id, pdr.base_prim_id AS style_id, pdr.category_designation AS category_name, 
+  pdr.lj1_seg_prod_text AS segment_name, pdr.base_text AS style_name
+FROM prod_details_recreation AS pdr
+```
+
 
 <br>
 

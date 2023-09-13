@@ -36,3 +36,17 @@ UNION
 SELECT city, city_alpha_length
 FROM shortest_city_name_alpha
 WHERE shortest_alpha_rankings = 1;
+
+
+
+-- Query the list of CITY names starting with vowels (i.e., a, e, i, o, or u) from STATION. 
+-- Your result cannot contain duplicates.
+WITH distinct_cities AS (
+SELECT
+    DISTINCT city AS unique_cities
+FROM STATION
+)
+SELECT
+    unique_cities
+FROM distinct_cities
+WHERE LEFT(LOWER(unique_cities), 1) in ('a', 'e', 'i', 'o', 'u');

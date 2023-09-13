@@ -50,3 +50,57 @@ SELECT
     unique_cities
 FROM distinct_cities
 WHERE LEFT(LOWER(unique_cities), 1) in ('a', 'e', 'i', 'o', 'u');
+
+
+
+-- Query the list of CITY names ending with vowels (a, e, i, o, u) from STATION. 
+-- Your result cannot contain duplicates.
+WITH unique_cities AS (
+SELECT
+    DISTINCT city AS city
+FROM STATION
+)
+SELECT
+    city
+FROM unique_cities
+WHERE LOWER(RIGHT(city, 1)) in ('a', 'e', 'i', 'o', 'u');
+
+
+-- Query the list of CITY names from STATION which have vowels (i.e., a, e, i, o, and u) as both their first and last characters. 
+-- Your result cannot contain duplicates.
+WITH distinct_cities AS (
+SELECT
+    DISTINCT city AS city
+FROM STATION
+)
+SELECT
+    city
+FROM distinct_cities
+WHERE LEFT(LOWER(city), 1) in ('a', 'e', 'i', 'o', 'u')
+    AND RIGHT(LOWER(city), 1) in ('a', 'e','i','o','u');
+
+
+-- Query the list of CITY names from STATION that do not start with vowels. 
+-- Your result cannot contain duplicates.
+WITH distinct_cities AS (
+SELECT
+    DISTINCT city AS city
+FROM STATION
+)
+SELECT
+    city
+FROM distinct_cities
+WHERE LEFT(lower(city), 1) NOT IN ('a', 'e', 'i', 'o', 'u');
+
+
+-- Query the list of CITY names from STATION that do not end with vowels. 
+-- Your result cannot contain duplicates.
+WITH distinct_cities AS (
+SELECT
+    DISTINCT city AS city
+FROM STATION
+)
+SELECT
+    city
+FROM distinct_cities
+WHERE RIGHT(lower(city), 1) NOT IN ('a', 'e', 'i', 'o', 'u');

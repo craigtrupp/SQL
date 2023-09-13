@@ -2,7 +2,7 @@
 * Starting SQL practice and challenges to stay sharp here with my fave, SQL.
 * [HackerRank Profile](https://www.hackerrank.com/craigtrupp8)
 
-<br>
+---
 
 ### **Challenges Defined** 🥇
 * Challenges and individual SQL queries only added to subsequent file below after passing test cases on platform
@@ -14,4 +14,4 @@
     - Advanced Joins ⛓️ ➕
     - Alternative Queries :accept:
 * `Entry/Easy` SQL Files
-    - [Weather Challenges - First Challenges](/diff_easy/weather_chall_easy.sql)
+    - [Weather Challenges - First Challenges](/HackerRank/diff_easy/weather_chall_easy.sql)

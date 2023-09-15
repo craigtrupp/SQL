@@ -19,6 +19,7 @@
     - [Weather Challenges - First Challenges](/HackerRank/diff_easy/weather_chall_easy.sql)
     - [Second Set](/HackerRank/diff_easy/second_set.sql)
         * Good Question on Triangle Defining and **CASE/WHEN** from a CTE - See sql query for more details on questions
+    - [Third Set](/HackerRank/diff_easy/third_file_measy.sql)
 
 ### **Certifications**
 [Basic - Platform Assesmment](https://www.hackerrank.com/certificates/657e0d176ccc)

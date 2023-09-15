@@ -33,6 +33,8 @@ SELECT VERSION();
     - [Second Set](/HackerRank/diff_easy/second_set.sql)
         * Good Question on Triangle Defining and **CASE/WHEN** from a CTE - See sql query for more details on questions
     - [Third Set](/HackerRank/diff_easy/third_file_measy.sql)
+        * "The Blunder" and "Top Earners" were challenges worth more points
+            * These two including CAST'ing, dervied (subqueries), and SQL method chaining for cleaning up errors
 
 <br>
 

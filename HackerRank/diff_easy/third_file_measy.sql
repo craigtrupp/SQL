@@ -116,4 +116,20 @@ the Employee table.
 Write a query to find the maximum total earnings for all employees as well as the 
 total number of employees who have maximum total earnings. 
 Then print these values as  2 space-separated integers.
+
+** Notes - MYSQL Version only 5.7 (Not 8+ - which supports CTEs, Ranking Functions)
+** Dervied or Subquery Required
 */
+SELECT 
+CONCAT(CAST(emp_total_earnings AS CHAR), ' ', grouped_total_earnings_emps)
+FROM 
+(
+    SELECT 
+        months * salary AS emp_total_earnings,
+        COUNT(*) AS grouped_total_earnings_emps
+    FROM Employee
+    GROUP BY emp_total_earnings
+    ORDER BY emp_total_earnings DESC
+) total_earnings
+LIMIT 1; -- Just take the top row that was already ordered for the highest total salary potential
+

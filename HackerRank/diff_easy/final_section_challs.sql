@@ -31,3 +31,30 @@ INNER JOIN CITY AS cty
     ON ctry.code = cty.countrycode
 GROUP BY ctry.continent;
 
+
+-- 
+-- Draw the Triangle 1 : 1 of 2 SQL (Advanced) Question within the Easy Difficulty 
+-- P(R) represents a pattern drawn by Julia in R rows. The following pattern represents P(5):
+-- * * * * * 
+-- * * * * 
+-- * * * 
+-- * * 
+-- *
+-- Write a query to print the pattern P(20).
+WITH RECURSIVE starCount(n) AS (
+SELECT
+    CAST('*' AS CHAR(25)) AS n
+UNION ALL
+SELECT
+    CONCAT('*', n)
+FROM starCount
+WHERE LENGTH(n) <= 19
+)
+SELECT *
+FROM starCount
+ORDER BY LENGTH(n) DESC;
+
+-- This isn't being excepted however despite creating 20 rows and having the descending star order
+
+
+

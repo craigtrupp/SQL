@@ -35,6 +35,9 @@ SELECT VERSION();
     - [Third Set](/HackerRank/diff_easy/third_file_measy.sql)
         * "The Blunder" and "Top Earners" were challenges worth more points
             * These two including CAST'ing, dervied (subqueries), and SQL method chaining for cleaning up errors
+    - [Fourth Final Set](/HackerRank/diff_easy/final_section_challs.sql)
+        * Basic Joins
+        * Use of **FLOOR** for agg average of joined rows for countries and continent data
 
 <br>
 

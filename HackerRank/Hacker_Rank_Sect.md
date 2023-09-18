@@ -30,6 +30,9 @@ SELECT VERSION();
     - Will highlight a few of these challenges following completion of the **`Difficulty - Easy`** section as all but 3 of the challenges for this Difficulty Setting are classified on the platform Under the Skill section as `SQL (Basic)`
         - **`Weather Observation Station 5`** - `SQL (Intermediate)` marked in this file [Weather Challenges - First Challenges](/HackerRank/diff_easy/weather_chall_easy.sql)
         - **`Draw the Triangle 1`** - `SQL (Advanced)`
+        - **`Draw the Triangle 2`** - `SQL (Advanced)`
+            * Both are in the same file at the end 
+            * [Draw the Triangle Procedures/Recursive CTE](/HackerRank/diff_easy/final_section_challs.sql)
     - **[Weather Challenges - First Challenges](/HackerRank/diff_easy/weather_chall_easy.sql)**
     - **[Second Set](/HackerRank/diff_easy/second_set.sql)**
         * Good Question on Triangle Defining and **CASE/WHEN** from a CTE - See sql query for more details on questions
@@ -39,6 +42,7 @@ SELECT VERSION();
     - **[Fourth Final Set](/HackerRank/diff_easy/final_section_challs.sql)**
         * Basic Joins
         * Use of **FLOOR** for agg average of joined rows for countries and continent data
+        * Procedures and Looping Syntax for final challenges
 
 <br>
 

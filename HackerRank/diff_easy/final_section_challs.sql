@@ -55,6 +55,46 @@ FROM starCount
 ORDER BY LENGTH(n) DESC;
 
 -- This isn't being excepted however despite creating 20 rows and having the descending star order
+-- Oh god ... the star needed a space, procedure is easier though
+DELIMITER //
+CREATE PROCEDURE starCreator(stars INT)
+    BEGIN
+       WHILE stars >= 1 DO 
+            SELECT REPEAT('* ', stars);
+            SET stars = stars - 1;
+        END WHILE;
+    END//
+DELIMITER ;
+CALL starCreator(20);
+
+
+
+-- Draw the Triangle 2 : 2 of 2 SQL (Advanced) Question with the Easy Difficulty category
+-- P(R) represents a pattern drawn by Julia in R rows. The following pattern represents P(5):
+-- * 
+-- * * 
+-- * * * 
+-- * * * * 
+-- * * * * *
+-- so Essentially the inverse
+DELIMITER //
+CREATE PROCEDURE growingTriangle(stars INT)
+    BEGIN
+        DECLARE counter INT;
+        SET counter = 1;
+        WHILE counter <= stars DO
+            SELECT REPEAT('* ', counter);
+            SET counter = counter + 1;
+        END WHILE;
+    END//
+DELIMITER ;
+CALL growingTriangle(20);
+
+
+
+
+
+
 
 
 

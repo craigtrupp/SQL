@@ -46,5 +46,9 @@ SELECT VERSION();
 
 <br>
 
+* #### **`Medium` SQL Difficulty Section**
+
+<br>
+
 ### **Certifications**
 [Basic - Platform Assesmment](https://www.hackerrank.com/certificates/657e0d176ccc)

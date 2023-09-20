@@ -47,6 +47,9 @@ SELECT VERSION();
 <br>
 
 * #### **`Medium` SQL Difficulty Section**
+    * [**`First Medium Set`**](/HackerRank/diff_medium/first_medium_set.sql)
+        - **THE PADS** - Text Manipulation combined WITH Union'ing of aggregate values CONCATENATED to create single column output
+        - **Occupation** - CASE/WHEN structure for row setting of all values in table by occupation followed by a Window function to rank the Name alphabetically for each occupation. Then to create a single table with multiple column output, we group by the window function result to pair the top ranking names alphabetically for each Occupation on the same row and use the COALESCE (which requires an agg function on a string - just a hack to get a return) to use the value for the row ranked occupation or null should one occupation have more results for names than another
 
 <br>
 

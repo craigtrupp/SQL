@@ -68,6 +68,37 @@ SELECT * FROM name_profs
 UNION ALL
 SELECT * FROM profession_string
 
+--- Output ----
+-- Aamina(D) 
+-- Ashley(P) 
+-- Belvet(P) 
+-- Britney(P) 
+-- Christeen(S) 
+-- Eve(A) 
+-- Jane(S) 
+-- Jennifer(A) 
+-- Jenny(S) 
+-- Julia(D) 
+-- Ketty(A) 
+-- Kristeen(S) 
+-- Maria(P) 
+-- Meera(P) 
+-- Naomi(P) 
+-- Priya(D) 
+-- Priyanka(P) 
+-- Samantha(A) 
+-- There are a total of 3 doctors. 
+-- There are a total of 4 actors. 
+-- There are a total of 4 singers. 
+-- There are a total of 7 professors.
+
+-- Quick Review
+-- Name Profs : This is simply creating the first output above for the Name and the first letter of their Occupation
+-- Profession count CTE is taking the group by counts for each profession and stacking vertically
+-- before  using the stacked counts (Occupation - first column, count - second column) to Order (by least amount to most for profession and then by the Occupation alphabetically if a tie)
+-- to create the profession_string CTE for a single column that we can then stack with the name of each individual's occupation
+
+
 
 -- ** Occupations - Difficulty Medium - Advanced Select Subtopic ** --
 -- Pivot the Occupation column in OCCUPATIONS so that each Name is sorted alphabetically and displayed 

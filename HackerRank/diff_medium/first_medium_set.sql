@@ -1,4 +1,4 @@
--- The PADS Advanced SELECT in Medium Difficulty
+-- ** The PADS Advanced SELECT in Medium Difficulty ** 
 -- Generate the following two result sets:
 
 -- Query an alphabetically ordered list of all names in OCCUPATIONS, immediately followed by the first 
@@ -69,3 +69,126 @@ UNION ALL
 SELECT * FROM profession_string
 
 
+-- ** Occupations - Difficulty Medium - Advanced Select Subtopic ** --
+-- Pivot the Occupation column in OCCUPATIONS so that each Name is sorted alphabetically and displayed 
+-- underneath its corresponding Occupation. The output column headers should be Doctor, Professor, Singer, and Actor, respectively.
+
+-- Note: Print NULL when there are no more names corresponding to an occupation.
+
+-- Input Format
+
+-- The OCCUPATIONS table is described as follows:
+
+-- Same table as previous 
+    -- Trick here is doing a UNION that has the same column lengths for Occupations that don't have the same count
+
+-- Expected Output - Columns
+-- |Doctor|Prof|Singer|Actor|
+-- Aamina Ashley Christeen Eve 
+-- Julia Belvet Jane Jennifer 
+-- Priya Britney Jenny Ketty 
+-- NULL Maria Kristeen Samantha 
+-- NULL Meera NULL NULL 
+-- NULL Naomi NULL NULL 
+-- NULL Priyanka NULL NULL
+
+-- Current Table Values
+-- |Name|Occupation|
+-- Ashley Professor
+-- Samantha Actor
+-- Julia Doctor
+-- Britney Professor
+-- Maria Professor
+-- Meera Professor
+-- Priya Doctor
+-- Priyanka Professor
+-- Jennifer Actor
+-- Ketty Actor
+-- Belvet Professor
+-- Naomi Professor
+-- Jane Singer
+-- Jenny Singer
+-- Kristeen Singer
+-- Christeen Singer
+-- Eve Actor
+-- Aamina Doctor
+
+WITH row_occupation_setting AS (
+SELECT
+    CASE WHEN Occupation = 'Doctor' THEN Name END AS Doctor,
+    CASE WHEN Occupation = 'Professor' THEN Name END AS Professor,
+    CASE WHEN Occupation = 'Singer' THEN Name END AS Singer,
+    CASE WHEN Occupation = 'Actor' THEN Name END As Actor,
+    ROW_NUMBER() OVER(
+        PARTITION BY Occupation
+        ORDER BY Name
+    )
+FROM Occupations
+)
+SELECT * FROM row_occupation_setting WHERE Doctor IS NOT NULL;
+
+-- First Step here is Essentially ranking the Occupations by their name
+-- Aamina NULL NULL NULL 1
+-- Julia NULL NULL NULL 2
+-- Priya NULL NULL NULL 3
+
+--- Now we can use a GROUPBY but if we don't include an agg function (like min/max) - we can't avoid an error to group the columns by their ranking
+-- Now using Coalesce can use the MIN/MAX on the Name value we pulled for each profession
+SELECT MIN('Samantha'), MAX('Samantha'); -- Samantha Samantha (OUTPUT IS THE SAME)
+
+
+-- Beacuse Without we get
+-- ERROR 1055 (42000) at line 5: Expression #1 of SELECT list is not in GROUP BY clause 
+-- and contains nonaggregated column 'row_occupation_setting.Doctor' which is not 
+-- functionally dependent on columns in GROUP BY clause; this is incompatible with 
+-- sql_mode=only_full_group_by
+
+WITH row_occupation_setting AS (
+SELECT
+    CASE WHEN Occupation = 'Doctor' THEN Name END AS Doctor,
+    CASE WHEN Occupation = 'Professor' THEN Name END AS Professor,
+    CASE WHEN Occupation = 'Singer' THEN Name END AS Singer,
+    CASE WHEN Occupation = 'Actor' THEN Name END As Actor,
+    ROW_NUMBER() OVER(
+        PARTITION BY Occupation
+        ORDER BY Name
+    ) AS occupation_name_srt_rank
+FROM Occupations
+)
+SELECT
+    COALESCE(Doctor, 'NULL') AS Doctor,
+    COALESCE(Professor, 'NULL') AS Professor
+FROM row_occupation_setting
+GROUP BY occupation_name_srt_rank;
+
+
+-- So no we can solve and use the Coalesce to set to null as needed
+WITH occupation_name_rank_rows AS (
+SELECT
+    CASE WHEN Occupation = 'Doctor' THEN Name END AS Doctor,
+    CASE WHEN Occupation = 'Professor' THEN Name END AS Professor,
+    CASE WHEN Occupation = 'Singer' THEN Name END AS Singer,
+    CASE WHEN Occupation = 'Actor' THEN Name END AS Actor,
+    RANK() OVER(
+        PARTITION BY Occupation
+        ORDER BY Name
+    ) AS occupation_name_rank
+FROM Occupations
+)
+SELECT
+    COALESCE(MIN(Doctor), NULL) AS Doctor,
+    COALESCE(MIN(Professor), NULL) AS Professor,
+    COALESCE(MIN(Singer), NULL) AS Singer,
+    COALESCE(MIN(Actor), NULL) AS Actor
+FROM occupation_name_rank_rows
+GROUP BY occupation_name_rank;
+
+
+---- Output ----
+-- Aamina Ashley Christeen Eve
+-- Julia Belvet Jane Jennifer
+-- Priya Britney Jenny Ketty
+-- NULL Maria Kristeen Samantha
+-- NULL Meera NULL NULL
+-- NULL Naomi NULL NULL
+-- NULL Priyanka NULL NULL

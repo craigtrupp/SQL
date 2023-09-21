@@ -50,7 +50,23 @@ SELECT VERSION();
     * [**`First Medium Set`**](/HackerRank/diff_medium/first_medium_set.sql)
         - **THE PADS** - Text Manipulation combined WITH Union'ing of aggregate values CONCATENATED to create single column output
         - **Occupation** - CASE/WHEN structure for row setting of all values in table by occupation followed by a Window function to rank the Name alphabetically for each occupation. Then to create a single table with multiple column output, we group by the window function result to pair the top ranking names alphabetically for each Occupation on the same row and use the COALESCE (which requires an agg function on a string - just a hack to get a return) to use the value for the row ranked occupation or null should one occupation have more results for names than another
-
+        - **Binary Tree Nodes** - Here we used a way of initially identifying the `Root` (Null for Parent) and `Leaf` (No Listed Parent of any other Nodes) to use an anti-join technique of **WHERE NOT EXISTS** for a self-join of the table's Nodes not existing in the same table anywhere as a Parent. Finally we could identify any `Inner` as the Node not being N in the union root and leaf CTE's
+            ```sql
+            leaf_nodes AS (
+            SELECT
+                *, 'Leaf' AS Tree_Description
+            FROM BST AS lnodes_1
+            WHERE NOT EXISTS (
+                SELECT
+                    1
+                FROM BST AS lnodes_2
+                WHERE lnodes_1.n = lnodes_2.p
+                )
+            )
+            ```
+    * [**`Second Medium Set`**](/HackerRank/diff_medium/second_medium_set.sql)
+        - **New Companies** - Lower MYSQL Version so need to use a derived (subquery) to create a base table for then a distinct count of company figures in different tables which are all joined through a shared company_code
+        - 
 <br>
 
 ### **Certifications**

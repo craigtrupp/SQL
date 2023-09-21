@@ -223,3 +223,130 @@ GROUP BY occupation_name_rank;
 -- NULL Meera NULL NULL
 -- NULL Naomi NULL NULL
 -- NULL Priyanka NULL NULL
+
+
+
+
+--- Binary Tree Nodes - Medium - Advanced Select
+-- You are given a table, BST, containing two columns: N and P, where N represents the value of a node in Binary Tree, and P is the parent of N.
+
+-- N - Integer
+-- P - Integer
+
+-- Write a query to find the node type of Binary Tree ordered by the value of the node. Output one of the following for each node:
+
+-- Root: If node is root node.
+-- Leaf: If node is leaf node.
+-- Inner: If node is neither root nor leaf node.
+
+-- Sample Input
+-- |N|P|
+-- |1|2|
+-- |3|2|
+-- |6|8|
+-- |9|8|
+-- |2|5|
+-- |8|5|
+-- |5|null|
+
+-- Sample Output
+-- |1 |Leaf|
+-- |2 |Inner|
+-- |3 |Leaf|
+-- |5 |Root|
+-- |6 |Leaf|
+-- |8 |Inner|
+-- |9 |Leaf|
+
+-- Quick Look at what we're working with
+SELECT * FROM BST ORDER BY N;
+--  |N|P|
+--  |1 |2|
+--  |2 |4|      
+--  |3 |2|
+--  |4 |15|
+--  |5 |6|
+--  |6 |4|
+--  |7 |6|
+--  |8 |9|
+--  |9 |11|
+--  |10| 9|
+--  |11| 15|
+--  |12| 13|
+--  |13| 11|
+--  |14| 13|
+--  |15| NULL|
+
+-- Expected
+-- |1 |Leaf |
+-- |2 |Inner |
+-- |3 |Leaf |
+-- |4 |Inner |
+-- |5 |Leaf |
+-- |6 |Inner |
+-- |7 |Leaf |
+-- |8 |Leaf |
+-- |9 |Inner |
+-- |10| Leaf |
+-- |11| Inner| 
+-- |12| Leaf |
+-- |13| Inner| 
+-- |14| Leaf |
+-- |15| Root|
+
+
+/*
+Enter your query here.
+*/
+
+-- Approach here is to use a self join to see if a Node is also a P otherwise it's a child unless null then a root
+WITH root_node AS (
+SELECT 
+    *, 'Root' AS Tree_Description
+FROM BST 
+WHERE P IS NULL
+), -- Anti Join for Self Join of same table (BST) to validate the Node is never seen as the parent
+leaf_nodes AS (
+SELECT
+    *, 'Leaf' AS Tree_Description
+FROM BST AS lnodes_1
+WHERE NOT EXISTS (
+        SELECT
+            1
+        FROM BST AS lnodes_2
+        WHERE lnodes_1.n = lnodes_2.p
+    )
+),
+inner_nodes AS (
+SELECT
+    *, 'Inner' AS Tree_Description
+FROM BST 
+WHERE N NOT IN (
+        SELECT N FROM root_node
+        UNION  -- Should work here as N should not be the same for these two previous CTE's
+        SELECT N FROM leaf_nodes
+    )
+)
+SELECT N, Tree_Description FROM root_node
+UNION 
+SELECT N, Tree_Description FROM leaf_nodes
+UNION
+SELECT N, Tree_Description FROM inner_nodes
+ORDER BY 1;
+
+---- Output ---- (It passed Wahoo!)
+-- 1 Leaf
+-- 2 Inner
+-- 3 Leaf
+-- 4 Inner
+-- 5 Leaf
+-- 6 Inner
+-- 7 Leaf
+-- 8 Leaf
+-- 9 Inner
+-- 10 Leaf
+-- 11 Inner
+-- 12 Leaf
+-- 13 Inner
+-- 14 Leaf
+-- 15 Root

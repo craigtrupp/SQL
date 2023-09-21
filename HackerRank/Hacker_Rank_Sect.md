@@ -66,7 +66,47 @@ SELECT VERSION();
             ```
     * [**`Second Medium Set`**](/HackerRank/diff_medium/second_medium_set.sql)
         - **New Companies** - Lower MYSQL Version so need to use a derived (subquery) to create a base table for then a distinct count of company figures in different tables which are all joined through a shared company_code
-        - 
+        - **Weather Observations**
+            * Euclidean and Manhattan Distance 
+            * Variation of Different Equations Based on two points which are the respective min/max values of the Longitude and Latitude 
+            * `Median` values of LAT_N 
+                - Did a few varieties of numeric and concatenated outputs here for a good idea of the flow and functionality of the CASE statements handling the median equation based on the count of the ordered cte. See below for context
+                ```sql
+                    WITH lat_n_ordered AS (
+                    SELECT
+                        LAT_N AS northern_latitude,
+                        RANK() OVER(
+                            ORDER BY LAT_N
+                        ) AS latitude_ranking
+                    FROM Station
+                    WHERE LAT_N IS NOT NULL
+                    ORDER BY latitude_ranking
+                    )
+                    SELECT
+                        CASE 
+                            WHEN (SELECT COUNT(*) FROM lat_n_ordered) % 2 = 0
+                            THEN
+                            CONCAT('N items was even with a median of : ' , ROUND(
+                                (SELECT northern_latitude FROM lat_n_ordered
+                                    WHERE latitude_ranking = (SELECT COUNT(*) FROM lat_n_ordered) / 2
+                                ) + 
+                                (SELECT northern_latitude FROM lat_n_ordered
+                                    WHERE latitude_ranking = (SELECT COUNT(*) FROM lat_n_ordered) / 2 + 1
+                                ) / 2
+                            , 4))
+                            ELSE
+                            CONCAT('N items was odd with a median of : ', ROUND(
+                                (SELECT 
+                                    northern_latitude
+                                FROM lat_n_ordered 
+                                WHERE latitude_ranking = 
+                                    FLOOR(
+                                        ((SELECT COUNT(*) FROM lat_n_ordered) / 2) + 1
+                                    ) -- 499 / 2 = 249.5 + 1 = 250.5 (FLOOR == 250)
+                                )
+                            , 4))
+                        END AS median;
+                ```
 <br>
 
 ### **Certifications**

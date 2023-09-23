@@ -107,6 +107,8 @@ SELECT VERSION();
                             , 4))
                         END AS median;
                 ```
+    * [**`Third Medium Set`**](/HackerRank/diff_medium/third_medium_set.sql)
+        - **The Report** - This SQL challenge had a student and marks table that was joined based on the value their mark was between for a grade classifcation. Then based on a grade assigned from their mark range, either the student name was declared as Null or the student name. See further details for the sample output for a classificaiton of students and names
 <br>
 
 ### **Certifications**

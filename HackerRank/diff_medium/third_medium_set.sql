@@ -55,3 +55,41 @@ SELECT
     gc.Grade,
     gc.Marks
 FROM grade_classification AS gc;
+
+
+
+----- ** Top Competitors (Intmd - JOINs) ** -----
+-- Julia just finished conducting a coding contest, and she needs your help assembling the leaderboard! 
+-- Write a query to print the respective hacker_id and name of hackers who achieved full scores for 
+-- more than one challenge. Order your output in descending order by the total number of challenges in 
+-- which the hacker earned a full score. If more than one hacker received full scores in same number of 
+-- challenges, then sort them by ascending hacker_id.
+
+-- Note here the version allowed for this challenge is pretty low so we need to use a dervied subquery and can't use CTEs the works
+/*
+Enter your query here.
+*/
+-- 
+SELECT
+    hacker_id, name
+FROM 
+(
+SELECT
+    c.challenge_id, c.difficulty_level, d.score AS max_challenge_score, 
+    s.hacker_id, h.name, s.score AS hacker_score
+FROM Challenges AS c
+INNER JOIN Difficulty AS d
+    USING(difficulty_level)
+INNER JOIN Submissions AS s
+    ON s.challenge_id = c.challenge_id
+INNER JOIN Hackers AS h
+    ON s.hacker_id = h.hacker_id
+WHERE d.score = s.score
+ORDER BY c.difficulty_level, s.hacker_id
+) hacker_max_scores
+GROUP BY hacker_id, name
+HAVING COUNT(*) > 1
+ORDER BY COUNT(*) DESC, hacker_id;
+
+
+

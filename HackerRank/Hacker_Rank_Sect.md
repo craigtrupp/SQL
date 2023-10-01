@@ -110,6 +110,7 @@ SELECT VERSION();
     * [**`Third Medium Set`**](/HackerRank/diff_medium/third_medium_set.sql)
         - **The Report** - This SQL challenge had a student and marks table that was joined based on the value their mark was between for a grade classifcation. Then based on a grade assigned from their mark range, either the student name was declared as Null or the student name. See further details for the sample output for a classificaiton of students and names
         - **Top Competitors** - This SQL challenge required a derived subquery joining multiple tables. Filltering was applied in the dervied/subquery for only selecting submissions for hacker who had achieved the max_score associated with the challenge pulled from the difficulty table. After the join path, a HAVING clause was used to ensure that the hacker had achieved a max_score on more than one challenge with a fairly straight forward order by path after that
+        - **Ollivander's Inventory** - SQL Challenge for selecting wand with highest power for the least amount of galleons. Test cases detail a different answer than I currently have, submitting first then adjusting for change log history
 <br>
 
 ### **Certifications**

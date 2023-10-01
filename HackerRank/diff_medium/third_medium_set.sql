@@ -93,3 +93,45 @@ ORDER BY COUNT(*) DESC, hacker_id;
 
 
 
+----- ** Ollivander's Inventory (Intmd - JOINs) ** -----
+-- Harry Potter and his friends are at Ollivander's with Ron, finally replacing Charlie's old broken wand.
+-- Hermione decides the best way to choose is by determining the minimum number of gold galleons 
+-- needed to buy each non-evil wand of high power and age. Write a query to print the id, age, coins_needed, 
+-- and power of the wands that Ron's interested in, sorted in order of descending power. If more than one 
+-- wand has same power, sort the result in order of descending age.
+/*
+Enter your query here.
+*/
+SELECT
+    w.id AS wand_id, wp.age AS wand_age, w.coins_needed AS galleons_needed, 
+    w.power AS wand_power, wp.code AS wp_code, wp.is_evil
+FROM Wands AS w 
+INNER JOIN Wands_Property AS wp
+    USING(code)
+WHERE wp.is_evil != 1
+ORDER BY w.power DESC, wp.age DESC
+LIMIT 15;
+
+-- My output
+-- |Wand|Age|Galleons|Power|code|is_evil|
+-- 1303 496 6678 10 103 0 
+-- 1038 496 4789 10 103 0 
+-- 1130 494 9439 10 39 0 
+-- 1315 492 4126 10 38 0 
+-- 892 492 4345 10 38 0 
+-- 9 491 7345 10 108 0 
+
+-- Above isn't quite right, need to only pull one unique wand should the age & power be the same
+-- for instance 1303 wand_id not in expected output like mine as it would appear we only want one unique age/power
+-- And should there be multiple, we pick the one with the lowest galleons (See age and power for wands 1315 and 892)
+-- (1315 - (power:10, age:492, galleons:4126) 892 - (power:10, age:492, galleons:4345))
+ 
+-- Expected Chunk of Output
+-- |wand|age|galleons|power|
+-- 1038 496 4789 10 
+-- 1130 494 9439 10 
+-- 1315 492 4126 10 
+-- 9 491 7345 10 
+
+
+

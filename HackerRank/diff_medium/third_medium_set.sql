@@ -298,3 +298,65 @@ ORDER BY unique_f_wnd_output_criteria DESC;
 -- 343 653 1 2 
 
 
+-- Ok ... so I gooofed something, heres a look at the two of the ids that are seeminglyg tied
+-- How do I differentiate here (1130 is the only return item - wand_id)
+SELECT 
+    wds.id, wds.code, wds.coins_needed, wds.power, wdp.age, wdp.is_evil
+FROM Wands AS wds
+INNER JOIN Wands_Property AS wdp 
+    USING(code)
+WHERE wds.id in (774, 1130);
+
+-- |id|code|galleons|power|age|is_evil|
+-- 774 63 9439 10 264 0 
+-- 1130 39 9439 10 494 0 
+
+--- It was the Joins
+-- Now we are using a INNNER JOIN to take our conditional subquery output to 
+-- join on explicit fields that exist in multiple tables
+-- So we INNER JOIN on the output of another subquery that gives us access to the fields
+-- once we have access to the fields, we can then explicitly state how the three fields from the 
+-- original logic must equal the joined_table values so we don't get duplicates
+
+/*
+Enter your query here.
+*/
+SELECT
+    join_tables_cond.id,
+    min_price_wand_cond.age AS cond_age, min_price_wand_cond.galleons AS min_galleon, 
+    min_price_wand_cond.power AS cond_power
+FROM 
+(
+    SELECT 
+        jwa.wand_age AS age, jwa.wand_power AS power, MIN(jwa.galleons_needed) AS galleons
+    FROM (
+        SELECT
+            w.id AS wand_id, wp.age AS wand_age, w.coins_needed AS galleons_needed, 
+            w.power AS wand_power, wp.code AS wp_code, wp.is_evil
+        FROM Wands AS w 
+        INNER JOIN Wands_Property AS wp
+            USING(code)
+        WHERE wp.is_evil != 1 
+    ) AS jwa
+    GROUP BY age, power
+) AS min_price_wand_cond
+INNER JOIN
+(
+SELECT 
+    wds.id, wds.code, wds.coins_needed, wds.power, wdp.age
+FROM Wands AS wds
+INNER JOIN Wands_Property AS wdp 
+    USING(code)
+WHERE wdp.is_evil != 1
+) AS join_tables_cond
+WHERE min_price_wand_cond.galleons = join_tables_cond.coins_needed
+AND min_price_wand_cond.age = join_tables_cond.age
+AND min_price_wand_cond.power = join_tables_cond.power
+ORDER BY cond_power DESC, cond_age DESC;
+
+
+
+
+
+
+

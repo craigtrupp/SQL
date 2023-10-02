@@ -134,4 +134,55 @@ LIMIT 15;
 -- 9 491 7345 10 
 
 
+--- How'd I'd go about doing it if allowed with the provided sql version
+-- SELECT VERSION(); -- 5.7.27-0ubuntu0.18.04.1 (No Ranking Function Allowed)
+SELECT
+    w.id, w.code, w.coins_needed, w.power, wp.age, wp.is_evil,
+    RANK() OVER(
+        PARTITION BY w.power, wp.age
+        ORDER BY w.coins_needed ASC
+    ) AS similar_wand_age_power_ranking
+FROM Wands AS w
+INNER JOIN Wands_Property AS wp 
+    USING(code)
+WHERE w.power = 10;
+
+
+-- Now with a derived/sub-query we can maybe look to use the output from the first query and group by the age and power 
+-- and take the min galleons needed (we probably need a few then to group by then take the id from our first subquery)
+
+-- SELECT VERSION(); -- 5.7.27-0ubuntu0.18.04.1 (No Ranking Function Allowed)
+SELECT
+    mgws.wand_age, mgws.wand_power, mgws.min_galleons
+FROM 
+    (
+    SELECT
+        wand_age, wand_power, MIN(galleons_needed) AS min_galleons
+    FROM
+        (
+        SELECT
+            w.id AS wand_id, wp.age AS wand_age, w.coins_needed AS galleons_needed, 
+            w.power AS wand_power, wp.code AS wp_code, wp.is_evil
+        FROM Wands AS w 
+        INNER JOIN Wands_Property AS wp
+            USING(code)
+        WHERE wp.is_evil != 1
+        ORDER BY w.power DESC, wp.age DESC
+        ) AS jwa
+    GROUP BY wand_age, wand_power
+    ORDER BY wand_power DESC, wand_age DESC
+    ) AS mgws
+LIMIT 5
+
+--- Output 
+-- 496 10 4789 
+-- 494 10 9439 
+-- 492 10 4126 
+-- 491 10 7345 
+-- 483 10 4352 
+
+-- So if we check this against the expected output, we can now see that a join would need to be done
+-- from the output of the derived query to get the final features from the two tables to create the expected output
+
+
 

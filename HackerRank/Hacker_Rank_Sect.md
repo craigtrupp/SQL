@@ -108,9 +108,15 @@ SELECT VERSION();
                         END AS median;
                 ```
     * [**`Third Medium Set`**](/HackerRank/diff_medium/third_medium_set.sql)
-        - **The Report** - This SQL challenge had a student and marks table that was joined based on the value their mark was between for a grade classifcation. Then based on a grade assigned from their mark range, either the student name was declared as Null or the student name. See further details for the sample output for a classificaiton of students and names
-        - **Top Competitors** - This SQL challenge required a derived subquery joining multiple tables. Filltering was applied in the dervied/subquery for only selecting submissions for hacker who had achieved the max_score associated with the challenge pulled from the difficulty table. After the join path, a HAVING clause was used to ensure that the hacker had achieved a max_score on more than one challenge with a fairly straight forward order by path after that
-        - **Ollivander's Inventory** - SQL Challenge for selecting wand with highest power for the least amount of galleons. Test cases detail a different answer than I currently have, submitting first then adjusting for change log history
+        - **`The Report`** - This SQL challenge had a student and marks table that was joined based on the value their mark was between for a grade classifcation. Then based on a grade assigned from their mark range, either the student name was declared as Null or the student name. See further details for the sample output for a classificaiton of students and names
+        - **`Top Competitors`** - This SQL challenge required a derived subquery joining multiple tables. Filltering was applied in the dervied/subquery for only selecting submissions for hacker who had achieved the max_score associated with the challenge pulled from the difficulty table. After the join path, a HAVING clause was used to ensure that the hacker had achieved a max_score on more than one challenge with a fairly straight forward order by path after that
+        - **`Ollivander's Inventory`** - SQL Challenge for selecting wand with highest power for the least amount of galleons. Test cases detail a different answer than I currently have, submitting first then adjusting for change log history. 
+            - Alright .... so theres a ton of comments in the code for this challenge
+                * We have nested subqueries that we pull from (thanks for no CTE access ...ggrrr) that gives us the proper values we need for wands of a certain power at and age for minimum price
+                * Next, there is a join on a subquery that gives us access to the fields for our subsequent where statement after the join on the subquery return
+                    - Prior the queries final `where's` we'd have a massive table so it's alot of filtering
+                    - Essentially its subqueries ... joined on subqueries which we then filter
+                * Ranking would've been so much gd*** easier but we couldn't with the sql version in the provided challenge
 <br>
 
 ### **Certifications**

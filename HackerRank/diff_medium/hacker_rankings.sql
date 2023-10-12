@@ -108,3 +108,31 @@ ORDER BY rnk_grpd.challenges_created_rankings, hcte.hacker_id;
 |27071| Gerald  |29 |1|
 |90267| Edward  |30 |1|
 */
+
+-- Passing Final SQL Query
+WITH hacker_CTE AS (
+SELECT
+    c.hacker_id, h.name, COUNT(*) AS challenges_created,
+    DENSE_RANK() OVER(
+        ORDER BY COUNT(*) DESC
+    ) AS challenges_created_rankings
+FROM Challenges AS c
+LEFT JOIN Hackers AS h
+    USING(hacker_id)
+GROUP BY c.hacker_id, h.name
+ORDER BY COUNT(*) DESC, c.hacker_id
+),
+rankings_grouped AS (
+SELECT 
+    challenges_created_rankings, COUNT(*) AS rank_count
+FROM hacker_CTE
+GROUP BY challenges_created_rankings
+ORDER BY challenges_created_rankings
+)
+SELECT 
+    hcte.hacker_id, hcte.name, hcte.challenges_created
+FROM hacker_CTE AS hcte
+INNER JOIN rankings_grouped AS rnk_grpd
+    ON hcte.challenges_created_rankings = rnk_grpd.challenges_created_rankings
+WHERE rnk_grpd.challenges_created_rankings = 1 OR rnk_grpd.rank_count = 1
+ORDER BY rnk_grpd.challenges_created_rankings, hcte.hacker_id;

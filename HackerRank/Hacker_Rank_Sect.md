@@ -117,6 +117,9 @@ SELECT VERSION();
                     - Prior the queries final `where's` we'd have a massive table so it's alot of filtering
                     - Essentially its subqueries ... joined on subqueries which we then filter
                 * Ranking would've been so much gd*** easier but we couldn't with the sql version in the provided challenge
+    
+    * [**`HackerRankings`**](/HackerRank/diff_medium/hacker_rankings.sql)
+        - **`Hacker Challenges Rankings`** = So ... because these files are getting pretty lengthy, we're just gonna do a challenge per file. For this particular challenge we are ranking users from a join on the `hacker_id` to `challenges_created` and ranking off of the challenges created by those users. With the output requirement, we are needing to isolate any users not with a top ranking (so most challenges created) being unique. Any hackers who have created the same amount of challenges but are not a top ranked user (in terms of challenges created) are to be excluded from the output. Long story short, exclude any non top ranked users who don't have a unique amount of challenges created.
 <br>
 
 ### **Certifications**

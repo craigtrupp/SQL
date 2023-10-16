@@ -105,3 +105,43 @@ SELECT * FROM unique_end_dates_ranked
 Look at where the ranks reset now for a "head" and "tail" representation of unique start_dates ranked in order calendar wise 
 and unique end_dates ranked in order calendar wise  
 */
+
+-- *** Solution Below that's Passing *** ---
+-- Solution After joining on the unioned table above for the "head" and "tail" rankings (unique start and end dates rankes for their date not as an end_date or start_date)
+/*
+Enter your query here.
+*/
+-- New approach - let's see if we can rank each unique starting_date not found in an end_date value then vice versa to set ranks for the start and ending of sequences
+WITH unique_start_dates_ranked AS (
+SELECT
+    RANK() OVER (
+        ORDER BY Start_date
+    ) AS uniq_sd_rank,
+    Start_date AS new_sd_cmp -- date to use in comparison and case setting
+FROM Projects
+WHERE Start_Date NOT IN (SELECT End_date FROM projects)
+ORDER BY Start_Date
+),
+unique_end_dates_ranked AS (
+SELECT
+    RANK() OVER(
+        ORDER BY End_date
+    ) AS uniq_ed_rank,
+    End_date AS new_ed_cmp
+FROM Projects
+WHERE End_Date NOT IN (SELECT Start_Date FROM projects)
+),
+start_end_rankings_joined AS (
+SELECT
+    usdr.uniq_sd_rank, usdr.new_sd_cmp AS start_seq, uedr.new_ed_cmp AS end_seq
+FROM unique_start_dates_ranked AS usdr
+INNER JOIN unique_end_dates_ranked uedr
+    ON usdr.uniq_sd_rank = uedr.uniq_ed_rank
+ORDER BY usdr.uniq_sd_rank -- Either rank would work here but essentially just need the date diff now of the join start & end date of the same rank
+)
+SELECT 
+    start_seq, end_seq
+FROM start_end_rankings_joined
+ORDER BY RANK() OVER(
+    ORDER BY DATEDIFF(end_seq, start_seq)
+), start_seq;

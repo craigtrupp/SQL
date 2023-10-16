@@ -120,6 +120,8 @@ SELECT VERSION();
     
     * [**`HackerRankings`**](/HackerRank/diff_medium/hacker_rankings.sql)
         - **`Hacker Challenges Rankings`** = So ... because these files are getting pretty lengthy, we're just gonna do a challenge per file. For this particular challenge we are ranking users from a join on the `hacker_id` to `challenges_created` and ranking off of the challenges created by those users. With the output requirement, we are needing to isolate any users not with a top ranking (so most challenges created) being unique. Any hackers who have created the same amount of challenges but are not a top ranked user (in terms of challenges created) are to be excluded from the output. Long story short, exclude any non top ranked users who don't have a unique amount of challenges created.
+    * [**`Hacker Rankings - Contest Leaderboard`**](/HackerRank/diff_medium/hacker_cleaderboard.sql)
+        - **`Contest Leaderboard`** - This one is fairly straightforward but the version restriction doesn't allow for CTE or Ranking functions. The hacker can submit multiple times for the same challenge id so it's just a multiple aggregation in terms of finding the max score for a hacker's submitted challenge (group by hacker_id, name, challenge_id). Then from this derived value (within the subquery) we can sum the total of each of the hacker's max score from every challenge and order by the output needed for the challenge to pass. Recall any derived(subquery) must be named
 <br>
 
 ### **Certifications**

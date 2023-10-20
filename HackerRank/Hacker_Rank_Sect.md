@@ -144,6 +144,13 @@ SELECT VERSION();
         |2015-10-30| 2015-10-31|
         |2015-10-13| 2015-10-15|
         |2015-10-01| 2015-10-04|
+
+    * [**`SQL Placements`**](/HackerRank/diff_medium/placements.sql)
+        - **`Advanced Join - Student/Friend Placement`** : Challenge was intended to generate a table output which detailed using shared id tables for values of interest. For example, we needed the salary of both the student and friend data in need so we can use multiple joins on the same table and be explict about which value to match on and alias the same table twice to reference values from multiple rows in the salary table to multiple ids on the same row. This then allows for easier comparison which the query is ultimately after in its' output. 
+            - Takeaways : 
+                * You can either use a CTE and chained type of table joins to reference an id value in multiple ways as it pertains to the belonger of the id. **`ex`** : StudentID is noted in a FriendTable as a Friend_Id. You can use the friend_id to declare a student's friend than use the output from that join to look back up to the student to just get the student details
+                * Also, when needing to reference the id value for a value type of pull on the same row, you can reference the table in two separate joins by aliasing the table twice to reference one Id value for a salary as opposed to another id on the same row for a different salary by simply opening up two left joins for the Ids to get each salary output on the same row
+            
 <br>
 
 ### **Certifications**

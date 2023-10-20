@@ -54,7 +54,7 @@ FROM friend_lookup AS fl
 LEFT JOIN Students AS st
     ON fl.student_lookup = st.id
 ORDER BY st.id
-)
+),
 SELECT 
     srj.student_name, srj.studentId, pck_1.Salary AS student_salary,
     srj.friend_name, srj.friendId, pck_2.Salary AS friend_salary
@@ -74,5 +74,40 @@ ORDER BY studentId;
 |Kristeen| 4      |     18.8     |Aamina  |19|      33.33|
 |Dyana   | 5      |     31.5     |Amina   |20|      221.6|
 */
+
+-- Final Output - We just need the name of student's who best friend have a higher salary sorted by the friend salary in ASC order
+WITH friend_lookup AS (
+SELECT
+    f.id AS student_lookup, f.Friend_ID as friend_lookup, s.Name AS friend_name
+FROM Friends AS f
+LEFT JOIN Students AS s
+    ON f.Friend_id = s.ID
+), 
+student_re_join AS (
+SELECT 
+    st.name AS student_name, st.id AS studentId, fl.friend_name AS friend_name, 
+    fl.friend_lookup AS friendId
+FROM friend_lookup AS fl
+LEFT JOIN Students AS st
+    ON fl.student_lookup = st.id
+ORDER BY st.id
+),
+full_join_row_detail AS (
+SELECT 
+    srj.student_name, srj.studentId, pck_1.Salary AS student_salary,
+    srj.friend_name, srj.friendId, pck_2.Salary AS friend_salary
+FROM student_re_join AS srj
+LEFT JOIN Packages AS pck_1
+    ON srj.studentId = pck_1.id
+LEFT JOIN Packages AS pck_2
+    ON srj.friendId = pck_2.id
+ORDER BY studentId
+)
+SELECT 
+    student_name
+FROM full_join_row_detail
+WHERE friend_salary > student_salary
+ORDER BY friend_salary;
+
 
 

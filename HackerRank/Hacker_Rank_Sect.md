@@ -123,7 +123,27 @@ SELECT VERSION();
     * [**`Hacker Rankings - Contest Leaderboard`**](/HackerRank/diff_medium/hacker_cleaderboard.sql)
         - **`Contest Leaderboard`** - This one is fairly straightforward but the version restriction doesn't allow for CTE or Ranking functions. The hacker can submit multiple times for the same challenge id so it's just a multiple aggregation in terms of finding the max score for a hacker's submitted challenge (group by hacker_id, name, challenge_id). Then from this derived value (within the subquery) we can sum the total of each of the hacker's max score from every challenge and order by the output needed for the challenge to pass. Recall any derived(subquery) must be named.
     * [**`SQL Project Planning `**](/HackerRank/diff_medium/sql_project_planning.sql)
-        - **`Advanced Join - Project Planning`** A fair bit to review here but a way of using a sequence of unique start & end values as joining partners then ordering by a date difference of our unique start and end dates
+        - **`Advanced Join - Project Planning`** A fair bit to review here but a way of using a sequence of unique start & end values as joining partners then ordering by a date difference of our unique start and end dates. 
+            - As consecutive dates are designated as being log entries for the same project. Our query looks at creating a unique head (start_dates) and unique tail (end_dates) where each date is not within the other column
+            - Using a Ranking function for our unique end and start dates, we can later join on the ranked value in a chained CTE manner to create a query to output the start and end dates of projects listed by the number of days it took to complete the project in ascending order
+        - `Sample Input/ Output`
+
+        |Task_id|Start_Date|End_Date|
+        |----|------|------|
+        |1|2015-10-01|2015-10-02|
+        |2|2015-10-02|2015-10-03|
+        |3|2015-10-03|2015-10-04|
+        |4|2015-10-13|2015-10-14|
+        |5|2015-10-14|2015-10-15|
+        |6|2015-10-28|2015-10-29|
+        |7|2015-10-30|2015-10-31|
+
+        |Start_Date|End_Date|
+        |-----|-------|
+        |2015-10-28| 2015-10-29|
+        |2015-10-30| 2015-10-31|
+        |2015-10-13| 2015-10-15|
+        |2015-10-01| 2015-10-04|
 <br>
 
 ### **Certifications**

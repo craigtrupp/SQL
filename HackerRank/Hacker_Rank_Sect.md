@@ -125,7 +125,7 @@ SELECT VERSION();
     * [**`SQL Project Planning `**](/HackerRank/diff_medium/sql_project_planning.sql)
         - **`Advanced Join - Project Planning`** A fair bit to review here but a way of using a sequence of unique start & end values as joining partners then ordering by a date difference of our unique start and end dates. 
             - As consecutive dates are designated as being log entries for the same project. Our query looks at creating a unique head (start_dates) and unique tail (end_dates) where each date is not within the other column
-            - Using a Ranking function for our unique end and start dates, we can later join on the ranked value in a chained CTE manner to create a query to output the start and end dates of projects listed by the number of days it took to complete the project in ascending order
+            - Using a Ranking function for our unique end and start dates, we can later join on the ranked value in a chained CTE manner to create a query to output the start and end dates of projects listed by the number of days it took to complete the project in ascending order. Note that ties for the same amount of days between projects is based by past dates (or earlier in the year)
         - `Sample Input/ Output`
 
         |Task_id|Start_Date|End_Date|

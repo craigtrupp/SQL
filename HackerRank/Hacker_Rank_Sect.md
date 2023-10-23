@@ -150,6 +150,9 @@ SELECT VERSION();
             - Takeaways : 
                 * You can either use a CTE and chained type of table joins to reference an id value in multiple ways as it pertains to the belonger of the id. **`ex`** : StudentID is noted in a FriendTable as a Friend_Id. You can use the friend_id to declare a student's friend than use the output from that join to look back up to the student to just get the student details
                 * Also, when needing to reference the id value for a value type of pull on the same row, you can reference the table in two separate joins by aliasing the table twice to reference one Id value for a salary as opposed to another id on the same row for a different salary by simply opening up two left joins for the Ids to get each salary output on the same row
+    
+    * [**`Symmetric Pairs`**](/HackerRank/diff_medium/sympairs.sql)
+        - **`Advanced Join - Coordinate Pairs`**
             
 <br>
 

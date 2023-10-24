@@ -162,7 +162,32 @@ SELECT VERSION();
                     - To combat this I did a `CASE/WHEN` to uniquely set the min/max value for each coordinate pair which allowed me to then group by those coordinate values to combine the coordinate pairs into one single row of output I could use
                     - The aggregate `ROUND(COUNT(*) / 2)` column was just a little fun I had with setting the pair count
                         - This wasn't needed for the output and I'd likely have to check my logic for counting of pairs but just a bit of fun for how an aggregated value for a grouped statistic can be mutated
-            
+    * [**`Print Prime Numbers`**](/HackerRank/diff_medium/prime_numbers.sql)
+        - **`Alternative Queries - Recrusive Sequence Generation`** - Our assignment here is to generate a sequence of values <= 1000 and print all the prime numbers with an ampersand type delimiter. First step is to generate a sequence which isn't quite as straightforward as say with PostgreSQL. 
+            - Good helper article at : [Generating Sequence w/MySQL Version 8.0 +](https://saveriomiroddi.github.io/Generating-sequences-ranges-via-mysql-8.0-ctes/)
+        ```sql
+        -- Query Syntax for Recursive MySQL
+        WITH RECURSIVE <cte_name> (<columns>) AS (
+            <base_case_query>
+            UNION ALL
+            <recursive_step_query> -- Invoke CTE at this stage similar to recursive function
+        )
+        <main_query>
+        -- Query Generation
+        CREATE TABLE int_sequence
+        WITH RECURSIVE sequence (n) AS (
+            SELECT 0
+            UNION ALL
+            SELECT n + 1 FROM sequence WHERE n + 1 <= 10
+        )
+        SELECT n FROM sequence;
+
+        SELECT * FROM int_sequence;
+        ```
+        * When the `SELECT` invokes the CTE 
+            - the first row returned is the base case (SELECT 0)
+            - from the second row onward, one row for each recursive step is returned
+    
 <br>
 
 ### **Certifications**

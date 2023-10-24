@@ -191,4 +191,5 @@ SELECT VERSION();
 <br>
 
 ### **Certifications**
-[Basic - Platform Assesmment](https://www.hackerrank.com/certificates/657e0d176ccc)
+- [Basic - Platform Assesmment](https://www.hackerrank.com/certificates/657e0d176ccc)
+- [Intermediate - Platform Assessment](https://www.hackerrank.com/certificates/84950ff4e513)
